@@ -122,3 +122,42 @@ jobs:
             -sdk iphonesimulator \
             CODE_SIGNING_ALLOWED=NO \
             build
+
+  release-candidate:
+    needs: [audit, check, store-assets, android, ios]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: npm run build
+      - name: Download generated store assets
+        uses: actions/download-artifact@v7
+        with:
+          name: boardgame-helper-store-assets
+          path: release-input/store
+      - name: Download Android builds
+        uses: actions/download-artifact@v7
+        with:
+          name: boardgame-helper-android-builds
+          path: release-input/android
+      - name: Assemble release candidate
+        run: >-
+          node scripts/prepare-release-candidate.js
+          --android-aab=release-input/android/bundle/release/app-release.aab
+          --store-assets-dir=release-input/store
+      - name: Validate release candidate
+        run: npm run check:release-candidate
+      - name: Upload release candidate
+        uses: actions/upload-artifact@v7
+        with:
+          name: boardgame-helper-release-candidate
+          path: release-candidate/
+          if-no-files-found: error
+          retention-days: 7

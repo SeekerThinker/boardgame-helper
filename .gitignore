@@ -1,6 +1,8 @@
 node_modules/
 dist/
 backup/
+release-candidate/
+release-input/
 *.apk
 *.apk.raw
 .DS_Store

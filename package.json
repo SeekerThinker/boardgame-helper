@@ -23,7 +23,9 @@
     "check:store-listing": "node scripts/check-store-listing.js",
     "check": "npm run build && npm run check:versions && npm run check:release-metadata && npm run check:store-listing && npm test",
     "assets:store": "node scripts/generate-store-assets.js",
-    "check:store-assets": "node scripts/check-store-assets.js"
+    "check:store-assets": "node scripts/check-store-assets.js",
+    "release:candidate": "node scripts/prepare-release-candidate.js",
+    "check:release-candidate": "node scripts/check-release-candidate.js"
   },
   "devDependencies": {
     "playwright": "^1.59.1"
