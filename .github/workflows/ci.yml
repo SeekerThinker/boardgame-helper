@@ -99,6 +99,48 @@ jobs:
             android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 7
+      - name: Smoke-test Android release signing injection
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_KEYSTORE="$RUNNER_TEMP/ci-release-signing-source.jks"
+          DECODED_KEYSTORE="$RUNNER_TEMP/ci-release-signing-decoded.jks"
+          KEYSTORE_B64="$RUNNER_TEMP/ci-release-signing.b64"
+          STORE_PASSWORD='ci-store-password-2026'
+          KEY_PASSWORD='ci-key-password-2026'
+          KEY_ALIAS='ci-signing-smoke'
+
+          keytool -genkeypair \
+            -keystore "$SOURCE_KEYSTORE" \
+            -storetype JKS \
+            -storepass "$STORE_PASSWORD" \
+            -keypass "$KEY_PASSWORD" \
+            -alias "$KEY_ALIAS" \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 1 \
+            -dname 'CN=Board Game Assistant CI Signing Smoke, OU=CI, O=SeekerThinker, C=JP'
+
+          base64 -w 0 "$SOURCE_KEYSTORE" > "$KEYSTORE_B64"
+          rm -f "$SOURCE_KEYSTORE"
+          base64 --decode "$KEYSTORE_B64" > "$DECODED_KEYSTORE"
+          chmod 600 "$DECODED_KEYSTORE"
+
+          (
+            cd android
+            BGA_STORE_FILE="$DECODED_KEYSTORE" \
+            BGA_STORE_PASSWORD="$STORE_PASSWORD" \
+            BGA_KEY_ALIAS="$KEY_ALIAS" \
+            BGA_KEY_PASSWORD="$KEY_PASSWORD" \
+            ./gradlew bundleRelease --no-daemon --rerun-tasks
+          )
+
+          jarsigner -verify android/app/build/outputs/bundle/release/app-release.aab | tee "$RUNNER_TEMP/jarsigner-smoke.txt"
+          grep -qi 'jar verified\.' "$RUNNER_TEMP/jarsigner-smoke.txt"
+          keytool -printcert -jarfile android/app/build/outputs/bundle/release/app-release.aab | tee "$RUNNER_TEMP/certificate-smoke.txt"
+          grep -q 'SHA256:' "$RUNNER_TEMP/certificate-smoke.txt"
+
+          rm -f "$DECODED_KEYSTORE" "$KEYSTORE_B64"
 
   ios:
     runs-on: macos-latest
