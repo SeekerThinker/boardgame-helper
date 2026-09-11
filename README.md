@@ -27,14 +27,15 @@
 - `src/style.css`：移动端界面样式
 - `scripts/build-static.js`：生成 `dist/`
 - `scripts/check-native-versions.js`：检查/同步 Web、Android、iOS 版本号
-- `scripts/serve-static.js`：本地预览服务
+- `scripts/serve-static.js`：本地预览服务（支持 `BASE_PATH` 子路径模拟）
 - `android/`：Capacitor Android 工程
 - `ios/`：Capacitor iOS 工程
 - `google-play-assets/`：Google Play 文案、隐私政策、图标、feature graphic 与双语截图
 - `app-store-assets/`：iPhone/iPad 双语截图
 - `STORE_RELEASE_CHECKLIST.md`：Google Play 和 App Store 上架准备清单
 - `tests/e2e/run-e2e.js`：真实 Chromium 端到端测试
-- `.github/workflows/ci.yml`：CI 流水线（npm 安全审计、Web 测试、Android debug 编译、iOS Simulator 编译）
+- `tests/e2e/run-subpath-e2e.js`：PWA 子路径部署、Service Worker 与离线回归测试
+- `.github/workflows/ci.yml`：CI 流水线（npm 安全审计、Web 测试、Android APK/AAB、iOS Simulator 编译）
 
 ## 开发
 
@@ -62,13 +63,26 @@ npm run build
 npm run check
 ```
 
-它会先构建，检查 `package.json` / Android / iOS 的用户可见版本是否一致，再运行 Node 单元测试和真实 Chromium 端到端测试。首次运行若缺少浏览器：
+它会先构建，检查 `package.json` / Android / iOS 的用户可见版本是否一致，再运行 Node 单元测试、根路径 Chromium E2E，以及挂载到 `/boardgame-helper/` 的子路径 PWA E2E。首次运行若缺少浏览器：
 
 ```bash
 npx playwright install chromium
 ```
 
-GitHub Actions 在 Pull Request 上还会额外执行 high/critical npm 漏洞门禁、Android `assembleDebug` 和无签名 iOS Simulator 编译。
+GitHub Actions 在 Pull Request 上还会额外执行 high/critical npm 漏洞门禁、Android debug APK + release AAB 编译和无签名 iOS Simulator 编译。
+
+## Web / PWA 部署
+
+`dist/` 可以部署在域名根目录，也可以部署到 `/boardgame-helper/` 这类子路径。HTML、Web App Manifest、Service Worker 预缓存和离线 fallback 都会跟随当前部署目录，不要求站点拥有域名根路径。
+
+可在本地模拟子路径托管：
+
+```bash
+npm run build
+BASE_PATH=/boardgame-helper/ node scripts/serve-static.js dist
+```
+
+然后打开 `http://127.0.0.1:3000/boardgame-helper/`。`npm run check` 会自动覆盖同样的子路径场景并验证离线刷新。
 
 ## 版本与发版
 

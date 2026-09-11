@@ -8,6 +8,15 @@ const root = path.resolve(projectRoot, process.argv[2] || '.');
 const port = Number(process.env.PORT || 3000);
 const host = process.env.HOST || '127.0.0.1';
 
+function normalizeBasePath(value) {
+  let base = String(value || '/').trim() || '/';
+  if (!base.startsWith('/')) base = `/${base}`;
+  if (!base.endsWith('/')) base += '/';
+  return base.replace(/\/{2,}/g, '/');
+}
+
+const basePath = normalizeBasePath(process.env.BASE_PATH);
+
 const contentTypes = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -20,18 +29,26 @@ const contentTypes = {
   '.svg': 'image/svg+xml'
 };
 
+function isInsideRoot(candidate) {
+  const relative = path.relative(root, candidate);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
 function resolveRequest(url) {
-  const pathname = decodeURIComponent((url || '/').split('?')[0]);
-  const candidate = path.resolve(root, pathname === '/' ? 'index.html' : pathname.slice(1));
-  if (!candidate.startsWith(root)) return null;
+  let pathname;
+  try { pathname = decodeURIComponent((url || '/').split('?')[0]); } catch (_) { return null; }
+  if (!pathname.startsWith(basePath)) return null;
+  const relativePath = pathname.slice(basePath.length);
+  const candidate = path.resolve(root, relativePath || 'index.html');
+  if (!isInsideRoot(candidate)) return null;
   return candidate;
 }
 
 const server = http.createServer((request, response) => {
   const filePath = resolveRequest(request.url);
   if (!filePath) {
-    response.writeHead(403);
-    response.end('Forbidden');
+    response.writeHead(404);
+    response.end('Not found');
     return;
   }
 
@@ -58,5 +75,5 @@ const server = http.createServer((request, response) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`Serving ${path.relative(projectRoot, root) || '.'} at http://${host}:${port}`);
+  console.log(`Serving ${path.relative(projectRoot, root) || '.'} at http://${host}:${port}${basePath}`);
 });
