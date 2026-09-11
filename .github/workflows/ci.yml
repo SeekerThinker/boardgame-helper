@@ -60,6 +60,18 @@ jobs:
       - name: Build Android debug APK
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
+      - name: Build Android release AAB
+        working-directory: android
+        run: ./gradlew bundleRelease --no-daemon
+      - name: Upload Android build artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: boardgame-helper-android-builds
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 7
 
   ios:
     runs-on: macos-latest
