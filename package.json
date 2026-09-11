@@ -19,7 +19,8 @@
     "check:versions": "node scripts/check-native-versions.js",
     "version:sync": "node scripts/check-native-versions.js --write",
     "check": "npm run build && npm run check:versions && npm test",
-    "assets:store": "node scripts/generate-store-assets.js"
+    "assets:store": "node scripts/generate-store-assets.js",
+    "check:store-assets": "node scripts/check-store-assets.js"
   },
   "devDependencies": {
     "playwright": "^1.59.1"
