@@ -147,9 +147,21 @@ export function createDefaultState(locale = 'zh') {
   };
 }
 
+function safeIdentifier(value, fallbackPrefix) {
+  const cleaned = String(value ?? '').trim().replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 64);
+  return cleaned || uid(fallbackPrefix);
+}
+
+function uniqueIdentifier(candidate, used, prefix) {
+  if (!used.has(candidate)) return candidate;
+  let next = uid(prefix);
+  while (used.has(next)) next = uid(prefix);
+  return next;
+}
+
 function normalizePlayer(player, index, baseSeconds) {
   return {
-    id: String(player?.id || uid('p_')),
+    id: safeIdentifier(player?.id, 'p_'),
     name: typeof player?.name === 'string' ? player.name.slice(0, 24) : '',
     defaultNameIndex: clamp(player?.defaultNameIndex || index + 1, 1, 999),
     color: /^#[0-9a-f]{6}$/i.test(player?.color || '') ? player.color : PLAYER_COLORS[index % PLAYER_COLORS.length],
@@ -162,7 +174,7 @@ function normalizePlayer(player, index, baseSeconds) {
 function normalizeField(field, index) {
   const fallbackId = `field_${index + 1}`;
   return {
-    id: String(field?.id || fallbackId).replace(/[^a-zA-Z0-9_-]/g, '_'),
+    id: safeIdentifier(field?.id || fallbackId, 'field_'),
     nameKey: typeof field?.nameKey === 'string' ? field.nameKey : '',
     customName: typeof field?.customName === 'string'
       ? field.customName.slice(0, 20)
@@ -178,23 +190,30 @@ export function normalizeState(input, locale = 'zh') {
   const baseSeconds = clamp(input.timer?.baseSeconds ?? input.timer?.seconds ?? base.timer.baseSeconds, 5, 86400);
   const rawPlayers = Array.isArray(input.players) && input.players.length ? input.players : base.players;
   const playerIds = new Set();
+  const playerIdMap = new Map();
   const players = rawPlayers.slice(0, MAX_PLAYERS).map((player, index) => {
+    const sourceId = String(player?.id ?? '');
     const normalized = normalizePlayer(player, index, baseSeconds);
-    if (playerIds.has(normalized.id)) normalized.id = uid('p_');
+    normalized.id = uniqueIdentifier(normalized.id, playerIds, 'p_');
     playerIds.add(normalized.id);
+    if (sourceId && !playerIdMap.has(sourceId)) playerIdMap.set(sourceId, normalized.id);
     return normalized;
   });
   const rawFields = Array.isArray(input.score?.fields) && input.score.fields.length
     ? input.score.fields
     : createFieldsFromPreset(input.score?.presetId || base.score.presetId);
   const fieldIds = new Set();
+  const fieldIdMap = new Map();
   const fields = rawFields.slice(0, 12).map((field, index) => {
+    const sourceId = String(field?.id ?? `field_${index + 1}`);
     const normalized = normalizeField(field, index);
-    if (fieldIds.has(normalized.id)) normalized.id = `field_${index + 1}_${uid()}`;
+    normalized.id = uniqueIdentifier(normalized.id, fieldIds, 'field_');
     fieldIds.add(normalized.id);
+    if (sourceId && !fieldIdMap.has(sourceId)) fieldIdMap.set(sourceId, normalized.id);
     return normalized;
   });
-  const requestedActiveId = input.timer?.activePlayerId == null ? null : String(input.timer.activePlayerId);
+  const requestedActiveRaw = input.timer?.activePlayerId == null ? null : String(input.timer.activePlayerId);
+  const requestedActiveId = requestedActiveRaw == null ? null : (playerIdMap.get(requestedActiveRaw) || requestedActiveRaw);
   const activeId = players.some(player => player.id === requestedActiveId)
     ? requestedActiveId
     : players[clamp(input.timer?.activePlayer ?? 0, 0, players.length - 1)]?.id;
@@ -235,20 +254,21 @@ export function normalizeState(input, locale = 'zh') {
       rule: input.score?.rule === 'lowest' ? 'lowest' : 'highest',
       target: clamp(input.score?.target ?? base.score.target, 1, 999999),
       fields,
-      rounds: Array.isArray(input.score?.rounds) ? input.score.rounds.map(normalizeRound) : [],
+      rounds: Array.isArray(input.score?.rounds)
+        ? input.score.rounds.map(round => normalizeRound(round, playerIdMap, fieldIdMap, playerIds, fieldIds))
+        : [],
       history: Array.isArray(input.score?.history) ? input.score.history.slice(-200) : [],
-      undoStack: Array.isArray(input.score?.undoStack) ? input.score.undoStack.slice(-50) : []
+      undoStack: normalizeUndoStack(input.score?.undoStack, playerIdMap, fieldIdMap, playerIds, fieldIds)
     },
     tools: {
       ...base.tools,
       ...(input.tools || {}),
-      history: Array.isArray(input.tools?.history) ? input.tools.history.slice(-20).map(normalizeToolHistory) : [],
-      lastFirstPlayerId: input.tools?.lastFirstPlayerId != null
-        && players.some(player => player.id === String(input.tools.lastFirstPlayerId))
-        ? String(input.tools.lastFirstPlayerId)
-        : null,
-      shuffledPlayerIds: normalizePlayerIdList(input.tools?.shuffledPlayerIds, playerIds),
-      teams: normalizeTeams(input.tools?.teams, playerIds)
+      history: Array.isArray(input.tools?.history)
+        ? input.tools.history.slice(-20).map(entry => normalizeToolHistory(entry, playerIdMap))
+        : [],
+      lastFirstPlayerId: normalizeReferencedPlayerId(input.tools?.lastFirstPlayerId, playerIdMap, playerIds),
+      shuffledPlayerIds: normalizePlayerIdList(input.tools?.shuffledPlayerIds, playerIds, playerIdMap),
+      teams: normalizeTeams(input.tools?.teams, playerIds, playerIdMap)
     },
     settings: {
       ...base.settings,
@@ -262,42 +282,81 @@ export function normalizeState(input, locale = 'zh') {
     }
   };
 
-  migrateLegacyScores(state, input);
+  migrateLegacyScores(state, input, fieldIdMap);
   recalculateScores(state);
   reconcileTimer(state, Date.now());
   return state;
 }
 
-function normalizePlayerIdList(value, validIds) {
-  if (!Array.isArray(value)) return [];
-  return [...new Set(value.map(String).filter(id => validIds.has(id)))];
+function normalizeReferencedPlayerId(value, idMap, validIds) {
+  if (value == null) return null;
+  const raw = String(value);
+  const mapped = idMap?.get(raw) || raw;
+  return validIds.has(mapped) ? mapped : null;
 }
 
-function normalizeTeams(value, validIds) {
+function normalizePlayerIdList(value, validIds, idMap = null) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.map(item => {
+    const raw = String(item);
+    return idMap?.get(raw) || raw;
+  }).filter(id => validIds.has(id)))];
+}
+
+function normalizeTeams(value, validIds, idMap = null) {
   if (!Array.isArray(value)) return [];
   return value.slice(0, 4).map((team, index) => ({
     index,
-    playerIds: normalizePlayerIdList(team?.playerIds, validIds)
+    playerIds: normalizePlayerIdList(team?.playerIds, validIds, idMap)
   })).filter(team => team.playerIds.length);
 }
 
-function normalizeToolHistory(entry) {
+function normalizeToolHistory(entry, playerIdMap = null) {
   if (!entry || typeof entry !== 'object') return { type: 'unknown', at: null };
+  const mapPlayerId = value => {
+    if (value == null) return null;
+    const raw = String(value);
+    return playerIdMap?.get(raw) || safeIdentifier(raw, 'p_');
+  };
   return {
     ...entry,
     type: typeof entry.type === 'string' ? entry.type : 'unknown',
-    playerId: entry.playerId == null ? null : String(entry.playerId),
-    playerIds: Array.isArray(entry.playerIds) ? entry.playerIds.map(String) : []
+    playerId: mapPlayerId(entry.playerId),
+    playerIds: Array.isArray(entry.playerIds) ? entry.playerIds.map(mapPlayerId).filter(Boolean) : []
   };
 }
 
-function normalizeRound(round) {
+function normalizeUndoStack(value, playerIdMap, fieldIdMap, validPlayerIds, validFieldIds) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(-50).filter(change => change && change.kind === 'score').map(change => {
+    const rawPlayerId = String(change.playerId ?? '');
+    const rawFieldId = String(change.fieldId ?? '');
+    const playerId = playerIdMap.get(rawPlayerId) || rawPlayerId;
+    const fieldId = fieldIdMap.get(rawFieldId) || rawFieldId;
+    if (!validPlayerIds.has(playerId) || !validFieldIds.has(fieldId)) return null;
+    return {
+      kind: 'score',
+      round: clamp(change.round ?? 1, 1, 9999),
+      playerId,
+      fieldId,
+      previous: clamp(change.previous ?? 0, 0, 999999),
+      next: clamp(change.next ?? 0, 0, 999999),
+      label: typeof change.label === 'string' ? change.label.slice(0, 64) : 'score.edit'
+    };
+  }).filter(Boolean);
+}
+
+function normalizeRound(round, playerIdMap = new Map(), fieldIdMap = new Map(), validPlayerIds = null, validFieldIds = null) {
   const scores = {};
   if (round?.scores && typeof round.scores === 'object') {
-    Object.entries(round.scores).forEach(([playerId, values]) => {
-      scores[playerId] = {};
+    Object.entries(round.scores).forEach(([rawPlayerId, values]) => {
+      const playerId = playerIdMap.get(rawPlayerId) || rawPlayerId;
+      if (validPlayerIds && !validPlayerIds.has(playerId)) return;
+      scores[playerId] ||= {};
       if (values && typeof values === 'object') {
-        Object.entries(values).forEach(([fieldId, value]) => {
+        Object.entries(values).forEach(([rawFieldId, value]) => {
+          const fieldId = fieldIdMap.get(rawFieldId) || rawFieldId;
+          if (validFieldIds && !validFieldIds.has(fieldId)) return;
           scores[playerId][fieldId] = clamp(value, 0, 999999);
         });
       }
@@ -311,14 +370,15 @@ function normalizeRound(round) {
   };
 }
 
-function migrateLegacyScores(state, input) {
+function migrateLegacyScores(state, input, fieldIdMap = new Map()) {
   if (state.score.rounds.length) return;
   const legacyHasScores = state.players.some(player => Object.values(player.scoreBreakdown || {}).some(value => Number(value) !== 0));
   if (!legacyHasScores) return;
   const round = ensureRound(state, Number(input.timer?.round || 1));
   state.players.forEach(player => {
     state.score.fields.forEach(field => {
-      const raw = Number(player.scoreBreakdown?.[field.id] || 0);
+      const legacyFieldId = [...fieldIdMap.entries()].find(([, mapped]) => mapped === field.id)?.[0] || field.id;
+      const raw = Number(player.scoreBreakdown?.[field.id] ?? player.scoreBreakdown?.[legacyFieldId] ?? 0);
       round.scores[player.id][field.id] = Math.max(0, field.effect === -1 ? Math.abs(raw) : raw);
     });
   });
