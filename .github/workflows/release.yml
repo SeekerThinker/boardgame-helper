@@ -1,0 +1,97 @@
+name: Release Candidate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-candidate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ios-verify:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run sync:ios
+      - name: Inspect Xcode project
+        run: xcodebuild -list -project ios/App/App.xcodeproj
+      - name: Build unsigned iOS Simulator app
+        run: |
+          xcodebuild \
+            -project ios/App/App.xcodeproj \
+            -target App \
+            -configuration Release \
+            -sdk iphonesimulator \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+  release-candidate:
+    needs: ios-verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run check
+      - name: Ensure Android SDK 36
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - name: Generate and validate store assets
+        run: |
+          npm run assets:store
+          npm run check:store-assets
+      - name: Configure Android release signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.BGA_ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.BGA_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.BGA_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.BGA_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$KEYSTORE_BASE64" || -z "$STORE_PASSWORD" || -z "$KEY_ALIAS" || -z "$KEY_PASSWORD" ]]; then
+            echo "::error::Missing Android release signing secrets. Configure BGA_ANDROID_KEYSTORE_BASE64, BGA_STORE_PASSWORD, BGA_KEY_ALIAS, and BGA_KEY_PASSWORD."
+            exit 1
+          fi
+          KEYSTORE_PATH="$RUNNER_TEMP/boardgame-helper-upload.jks"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          chmod 600 "$KEYSTORE_PATH"
+          {
+            echo "BGA_STORE_FILE=$KEYSTORE_PATH"
+            echo "BGA_STORE_PASSWORD=$STORE_PASSWORD"
+            echo "BGA_KEY_ALIAS=$KEY_ALIAS"
+            echo "BGA_KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+      - run: npm run sync:android
+      - name: Build signed Android release AAB
+        working-directory: android
+        run: ./gradlew bundleRelease --no-daemon
+      - name: Assemble signed release candidate
+        run: npm run release:candidate
+      - name: Require verified Android signature and complete checksums
+        run: npm run check:release-candidate -- --require-android-signed
+      - name: Upload signed release candidate
+        uses: actions/upload-artifact@v7
+        with:
+          name: boardgame-helper-signed-release-candidate
+          path: release-candidate/
+          if-no-files-found: error
+          retention-days: 14
