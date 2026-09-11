@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { STORAGE_KEY } from '../../src/core.js';
 import {
   ARCHIVE_STORAGE_KEY, MAX_ARCHIVE_ENTRIES, normalizeArchiveEntry,
   loadArchive, saveGameToArchive, deleteArchiveEntry, clearArchive
@@ -65,6 +66,51 @@ test('save prepends, dedupes by id, and persists to storage', () => {
   list = loadArchive(storage);
   assert.equal(list.length, 2, 'same entry is replaced, not duplicated');
   assert.equal(list[0].name, 'Friday Night updated');
+});
+
+test('save recovers rematch configuration from the persisted live game', () => {
+  const storage = fakeStorage({
+    [STORAGE_KEY]: JSON.stringify({
+      timer: { mode: 'pool', baseSeconds: 777 },
+      score: {
+        fields: [
+          { id: 'coins', nameKey: '', customName: 'Coins', step: 3, effect: 1 },
+          { id: 'debt', nameKey: '', customName: 'Debt', step: 2, effect: -1 }
+        ]
+      }
+    })
+  });
+
+  saveGameToArchive({
+    ...sampleGame,
+    id: 'game_config_fallback',
+    fields: undefined,
+    timerMode: undefined,
+    baseSeconds: undefined
+  }, storage);
+
+  const [saved] = loadArchive(storage);
+  assert.equal(saved.timerMode, 'pool');
+  assert.equal(saved.baseSeconds, 777);
+  assert.deepEqual(saved.fields, [
+    { id: 'coins', nameKey: '', customName: 'Coins', step: 3, effect: 1 },
+    { id: 'debt', nameKey: '', customName: 'Debt', step: 2, effect: -1 }
+  ]);
+});
+
+test('explicit archive configuration wins over persisted fallback state', () => {
+  const storage = fakeStorage({
+    [STORAGE_KEY]: JSON.stringify({
+      timer: { mode: 'turn', baseSeconds: 90 },
+      score: { fields: [{ id: 'other', customName: 'Other', step: 1, effect: 1 }] }
+    })
+  });
+
+  saveGameToArchive({ ...sampleGame, id: 'game_explicit' }, storage);
+  const [saved] = loadArchive(storage);
+  assert.equal(saved.timerMode, 'chess');
+  assert.equal(saved.baseSeconds, 600);
+  assert.equal(saved.fields[0].id, 'vp');
 });
 
 test('load tolerates corrupted or unexpected payloads', () => {
