@@ -218,10 +218,18 @@ async function run() {
 
   const privacyContext = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'zh-CN' });
   const privacyPage = await privacyContext.newPage();
+  const privacyErrors = [];
+  privacyPage.on('console', message => { if (message.type() === 'error') privacyErrors.push(message.text()); });
+  privacyPage.on('pageerror', error => privacyErrors.push(error.message));
   await privacyPage.goto(`${url}/privacy.html`, { waitUntil: 'networkidle' });
   assert.match(await privacyPage.title(), /隐私政策/);
-  await privacyPage.getByRole('link', { name: /返回应用/ }).click();
+  await Promise.all([
+    privacyPage.waitForURL(`${url}/`),
+    privacyPage.getByRole('link', { name: /返回应用/ }).click()
+  ]);
+  await privacyPage.locator('[data-template]').first().waitFor({ state: 'visible' });
   assert.equal(await privacyPage.locator('[data-template]').count(), 6);
+  assert.equal(privacyErrors.length, 0, `Privacy return errors: ${privacyErrors.join(' | ')}`);
   await privacyContext.close();
 
   console.log(JSON.stringify({
