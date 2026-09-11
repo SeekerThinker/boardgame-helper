@@ -72,16 +72,25 @@ function relativeFiles(dir) {
   return files.sort();
 }
 
-function androidSigningStatus(aab) {
-  const result = spawnSync('jarsigner', ['-verify', aab], {
-    encoding: 'utf8',
-    env: { ...process.env, LANG: 'C', LC_ALL: 'C' }
-  });
-  if (result.error?.code === 'ENOENT') return 'unknown-no-jarsigner';
-  const output = `${result.stdout || ''}\n${result.stderr || ''}`;
-  if (/jar verified\./i.test(output)) return 'verified';
-  if (/jar is unsigned/i.test(output)) return 'unsigned';
-  return result.status === 0 ? 'unknown' : 'invalid';
+function androidSigningInfo(aab) {
+  const env = { ...process.env, LANG: 'C', LC_ALL: 'C' };
+  const verify = spawnSync('jarsigner', ['-verify', aab], { encoding: 'utf8', env });
+  if (verify.error?.code === 'ENOENT') return { status: 'unknown-no-jarsigner', certificateSha256: null };
+
+  const output = `${verify.stdout || ''}\n${verify.stderr || ''}`;
+  if (/jar is unsigned/i.test(output)) return { status: 'unsigned', certificateSha256: null };
+  if (!/jar verified\./i.test(output)) {
+    return { status: verify.status === 0 ? 'unknown' : 'invalid', certificateSha256: null };
+  }
+
+  const certificate = spawnSync('keytool', ['-printcert', '-jarfile', aab], { encoding: 'utf8', env });
+  if (certificate.error?.code === 'ENOENT') return { status: 'verified', certificateSha256: null };
+  const certificateOutput = `${certificate.stdout || ''}\n${certificate.stderr || ''}`;
+  const fingerprint = certificateOutput.match(/SHA256:\s*([0-9A-F:]{64,})/i)?.[1]
+    ?.replaceAll(':', '')
+    .toLowerCase() || null;
+
+  return { status: 'verified', certificateSha256: fingerprint };
 }
 
 const outputDir = resolveFromRoot(argValue('output', 'release-candidate'));
@@ -140,7 +149,7 @@ for (const relative of [
   else copyFile(source, destination);
 }
 
-const signingStatus = androidSigningStatus(path.join(outputDir, 'android/app-release.aab'));
+const signing = androidSigningInfo(path.join(outputDir, 'android/app-release.aab'));
 const manifest = {
   schemaVersion: 1,
   app: {
@@ -157,7 +166,8 @@ const manifest = {
     versionName: androidVersionName,
     targetSdk,
     aab: 'android/app-release.aab',
-    signingStatus
+    signingStatus: signing.status,
+    signingCertificateSha256: signing.certificateSha256
   },
   ios: {
     marketingVersion: iosVersion,
@@ -185,6 +195,7 @@ console.log(JSON.stringify({
   version,
   output: path.relative(root, outputDir) || '.',
   fileCount: checksumFiles.length + 1,
-  androidSigningStatus: signingStatus,
+  androidSigningStatus: signing.status,
+  androidSigningCertificateSha256: signing.certificateSha256,
   iosStoreBinaryIncluded: false
 }, null, 2));

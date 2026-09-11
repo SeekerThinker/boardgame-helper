@@ -20,7 +20,8 @@
   - 1024 图标和 1024×500 feature graphic
   - release APK/AAB 构建流程
   - Android release signing 的本机环境变量和 GitHub Actions secret 注入路径
-  - AAB 签名状态与 SHA-256 自动验证
+  - 一次性 CI keystore signing smoke test：演练 Base64 解码、`BGA_*` 注入、Gradle signed AAB、`jarsigner` 与证书 SHA-256 读取；测试 key 不进入 artifact
+  - AAB 签名状态、签名证书 SHA-256 与 RC 文件 SHA-256 自动验证
 - 账号持有人仍需完成：
   - 配置真实发布/上传 keystore；普通 PR CI 产出的 release AAB 未注入密钥，仅用于构建验证
   - 隐私政策 HTTPS 地址
@@ -47,8 +48,9 @@
 
 Pull Request CI 在 `audit`、`check`、`store-assets`、`android`、`ios` 全部成功后，会额外生成统一 `boardgame-helper-release-candidate` artifact。其中包含 Web/PWA、Android AAB、商店素材、listing/隐私/发布清单、`release-manifest.json` 与 `SHA256SUMS.txt`。
 
-- 普通 CI 的 AAB 不注入发布密钥，`release-manifest.json` 必须标记为 `android.signingStatus=unsigned`；该包不可直接上传 Google Play。
-- GitHub Actions 的手动 **Release Candidate** 工作流要求 `BGA_ANDROID_KEYSTORE_BASE64`、`BGA_STORE_PASSWORD`、`BGA_KEY_ALIAS`、`BGA_KEY_PASSWORD` 四个 secrets，只有 `jarsigner` 验证为 `verified` 才会输出 `boardgame-helper-signed-release-candidate`。
+- 普通 CI 的 AAB 不注入发布密钥，`release-manifest.json` 必须标记为 `android.signingStatus=unsigned` 且 `android.signingCertificateSha256=null`；该包不可直接上传 Google Play。
+- Android job 在上传 unsigned 验证 artifact 之后，会用一次性临时测试 key 重建 signed AAB，验证现有 Gradle `BGA_*` 签名路径确实可用；该 smoke AAB/测试 key 不作为发布 artifact 保存。
+- GitHub Actions 的手动 **Release Candidate** 工作流要求 `BGA_ANDROID_KEYSTORE_BASE64`、`BGA_STORE_PASSWORD`、`BGA_KEY_ALIAS`、`BGA_KEY_PASSWORD` 四个 secrets。只有 `jarsigner` 验证为 `verified` 且能读取合法 64 位十六进制 `android.signingCertificateSha256` 时，才会输出 `boardgame-helper-signed-release-candidate`。
 - iOS 商店二进制不在自动 RC 中伪造；manifest 必须标记 `ios.storeBinaryIncluded=false`，直到真实 Apple Team/证书/Profile 可用并完成 Archive/export。
 - RC 中除 `SHA256SUMS.txt` 自身外的所有文件必须被 SHA-256 清单覆盖，且校验无遗漏/多余文件。
 
@@ -71,7 +73,7 @@ Pull Request CI 在 `audit`、`check`、`store-assets`、`android`、`ios` 全�
 - 防误触：重置整局、删除玩家、删除计分栏位都有确认。
 - 后台通知：Android 13+ 和 iOS 首次授权、拒绝、再次打开三条路径均验证。
 - 支持渠道：在 Google Play 的 Developer Contact 与 App Store 的 App Support 中填写并验证公开联系方式。
-- Android 正式候选包：`release-manifest.json` 中 `android.signingStatus` 必须为 `verified`。
+- Android 正式候选包：`release-manifest.json` 中 `android.signingStatus` 必须为 `verified`，且 `android.signingCertificateSha256` 必须与预期上传/发布证书指纹一致。
 - iOS 正式候选包：在真实 Apple Developer Team 下完成 Archive/export 并在真机复验通知与后台恢复。
 
 ## 版本与发布元数据
@@ -100,4 +102,4 @@ npm run check:release-candidate
 
 `npm run check:release-metadata` 会校验 Web/Android/iOS 版本与 build metadata、Google Play 包名/target SDK、Android 通知与精确闹钟权限、iOS 无追踪/无数据收集隐私清单，以及本发布清单是否与工程一致。
 
-`npm run check:release-candidate` 会校验统一 RC 的关键文件、版本、Google Play/App Store 各 20 张截图、完整 SHA-256 文件集合和 Android AAB 签名状态。正式签名工作流额外使用 `--require-android-signed`，因此 unsigned/invalid AAB 会直接失败。
+`npm run check:release-candidate` 会校验统一 RC 的关键文件、版本、Google Play/App Store 各 20 张截图、完整 SHA-256 文件集合、Android AAB 签名状态，以及已签名包的签名证书 SHA-256。正式签名工作流额外使用 `--require-android-signed`，因此 unsigned/invalid AAB 或缺失证书指纹都会直接失败。
