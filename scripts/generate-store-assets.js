@@ -78,7 +78,6 @@ async function waitForServer() {
 async function captureView(page, screen, outputPath) {
   await page.evaluate(() => {
     document.documentElement.style.scrollBehavior = 'auto';
-    document.body.style.paddingBottom = '';
     window.scrollTo(0, 0);
   });
 
@@ -98,12 +97,15 @@ async function captureView(page, screen, outputPath) {
   }
 
   if (screen === '03-history') {
-    // Tall tablet viewports can fit both the score editor and history section,
-    // which makes scrollIntoViewIfNeeded() a no-op and produces a duplicate of
-    // the score screenshot. Temporary bottom space guarantees enough scroll
-    // range to anchor the history section at the top without changing app UI.
-    await page.evaluate(() => { document.body.style.paddingBottom = '100vh'; });
-    await page.locator('.round-history').evaluate(element => element.scrollIntoView({ block: 'start', behavior: 'auto' }));
+    // Compose a focused history view using the real rendered history column.
+    // This avoids duplicate iPad screenshots when the whole score page fits in
+    // a tall viewport, while keeping the app header and tab context visible.
+    await page.locator('.score-layout').evaluate(layout => {
+      const editorColumn = layout.firstElementChild;
+      if (editorColumn) editorColumn.style.display = 'none';
+      layout.style.gridTemplateColumns = 'minmax(0, 1fr)';
+    });
+    await page.evaluate(() => window.scrollTo(0, 0));
   }
 
   await page.waitForTimeout(50);
