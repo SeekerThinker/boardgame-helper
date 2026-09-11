@@ -106,8 +106,8 @@ jobs:
           SOURCE_KEYSTORE="$RUNNER_TEMP/ci-release-signing-source.jks"
           DECODED_KEYSTORE="$RUNNER_TEMP/ci-release-signing-decoded.jks"
           KEYSTORE_B64="$RUNNER_TEMP/ci-release-signing.b64"
-          STORE_PASSWORD='ci-store-password-2026'
-          KEY_PASSWORD='ci-key-password-2026'
+          STORE_PASSWORD="$(openssl rand -hex 18)"
+          KEY_PASSWORD="$(openssl rand -hex 18)"
           KEY_ALIAS='ci-signing-smoke'
 
           keytool -genkeypair \
@@ -135,11 +135,22 @@ jobs:
             ./gradlew bundleRelease --no-daemon --rerun-tasks
           )
 
-          jarsigner -verify android/app/build/outputs/bundle/release/app-release.aab | tee "$RUNNER_TEMP/jarsigner-smoke.txt"
+          SIGNED_AAB="android/app/build/outputs/bundle/release/app-release.aab"
+          jarsigner -verify "$SIGNED_AAB" | tee "$RUNNER_TEMP/jarsigner-smoke.txt"
           grep -qi 'jar verified\.' "$RUNNER_TEMP/jarsigner-smoke.txt"
-          keytool -printcert -jarfile android/app/build/outputs/bundle/release/app-release.aab | tee "$RUNNER_TEMP/certificate-smoke.txt"
+          keytool -printcert -jarfile "$SIGNED_AAB" | tee "$RUNNER_TEMP/certificate-smoke.txt"
           grep -q 'SHA256:' "$RUNNER_TEMP/certificate-smoke.txt"
 
+          SIGNED_RC="$RUNNER_TEMP/signed-release-candidate"
+          node scripts/prepare-release-candidate.js \
+            --output="$SIGNED_RC" \
+            --android-aab="$SIGNED_AAB" \
+            --store-assets-dir=.
+          node scripts/check-release-candidate.js \
+            --dir="$SIGNED_RC" \
+            --require-android-signed
+
+          rm -rf "$SIGNED_RC"
           rm -f "$DECODED_KEYSTORE" "$KEYSTORE_B64"
 
   ios:
