@@ -47,7 +47,7 @@ jobs:
           cache: gradle
       - run: npm ci
       - name: Ensure Android SDK 36
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+        run: "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0"
       - run: npm run sync:android
       - name: Build Android debug APK
         working-directory: android
