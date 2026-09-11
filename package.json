@@ -13,8 +13,11 @@
     "preview": "node scripts/serve-static.js dist",
     "test:unit": "node --test tests/unit/*.test.js",
     "test:e2e": "node tests/e2e/run-e2e.js",
+    "test:security": "npm audit --audit-level=high",
     "test": "npm run test:unit && npm run test:e2e",
-    "check": "npm run build && npm test",
+    "check:versions": "node scripts/check-native-versions.js",
+    "version:sync": "node scripts/check-native-versions.js --write",
+    "check": "npm run build && npm run check:versions && npm test",
     "assets:store": "node scripts/generate-store-assets.js"
   },
   "devDependencies": {

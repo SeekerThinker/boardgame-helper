@@ -2,7 +2,7 @@
 // live game state so starting a new game never erases past results.
 // All storage access is defensive: the module works in Node tests and in
 // private-mode browsers by falling back to an in-memory store.
-import { uid } from './core.js';
+import { STORAGE_KEY, uid } from './core.js';
 
 export const ARCHIVE_STORAGE_KEY = 'board-game-assistant-archive-v1';
 export const MAX_ARCHIVE_ENTRIES = 30;
@@ -72,6 +72,30 @@ export function normalizeArchiveEntry(input) {
   };
 }
 
+function enrichMissingConfig(entry, storage) {
+  const source = entry && typeof entry === 'object' ? entry : {};
+  const needsFields = !Array.isArray(source.fields) || source.fields.length === 0;
+  const needsTimerMode = !['turn', 'chess', 'pool', 'round'].includes(source.timerMode);
+  const baseSeconds = Number(source.baseSeconds);
+  const needsBaseSeconds = !Number.isFinite(baseSeconds) || baseSeconds < 5;
+  if (!needsFields && !needsTimerMode && !needsBaseSeconds) return source;
+
+  try {
+    const raw = safeStorage(storage).getItem(STORAGE_KEY);
+    if (!raw) return source;
+    const live = JSON.parse(raw);
+    if (!live || typeof live !== 'object') return source;
+    return {
+      ...source,
+      fields: needsFields && Array.isArray(live.score?.fields) ? live.score.fields : source.fields,
+      timerMode: needsTimerMode ? live.timer?.mode : source.timerMode,
+      baseSeconds: needsBaseSeconds ? live.timer?.baseSeconds : source.baseSeconds
+    };
+  } catch (_) {
+    return source;
+  }
+}
+
 export function loadArchive(storage = defaultStorage()) {
   try {
     const raw = safeStorage(storage).getItem(ARCHIVE_STORAGE_KEY);
@@ -94,7 +118,7 @@ export function persistArchive(entries, storage = defaultStorage()) {
 }
 
 export function saveGameToArchive(entry, storage = defaultStorage()) {
-  const normalized = normalizeArchiveEntry(entry);
+  const normalized = normalizeArchiveEntry(enrichMissingConfig(entry, storage));
   const rest = loadArchive(storage).filter(item => item.id !== normalized.id);
   return persistArchive([normalized, ...rest], storage);
 }
