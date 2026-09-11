@@ -27,6 +27,8 @@
 - `src/style.css`：移动端界面样式
 - `scripts/build-static.js`：生成 `dist/`
 - `scripts/check-native-versions.js`：检查/同步 Web、Android、iOS 版本号
+- `scripts/generate-store-assets.js`：生成 Google Play / App Store 双语截图与 feature graphic
+- `scripts/check-store-assets.js`：校验商店素材文件集合、像素尺寸与重复截图
 - `scripts/serve-static.js`：本地预览服务（支持 `BASE_PATH` 子路径模拟）
 - `android/`：Capacitor Android 工程
 - `ios/`：Capacitor iOS 工程
@@ -35,7 +37,7 @@
 - `STORE_RELEASE_CHECKLIST.md`：Google Play 和 App Store 上架准备清单
 - `tests/e2e/run-e2e.js`：真实 Chromium 端到端测试
 - `tests/e2e/run-subpath-e2e.js`：PWA 子路径部署、Service Worker 与离线回归测试
-- `.github/workflows/ci.yml`：CI 流水线（npm 安全审计、Web 测试、Android APK/AAB、iOS Simulator 编译）
+- `.github/workflows/ci.yml`：CI 流水线（安全审计、Web 测试、商店素材、Android APK/AAB、iOS Simulator 编译）
 
 ## 开发
 
@@ -69,7 +71,7 @@ npm run check
 npx playwright install chromium
 ```
 
-GitHub Actions 在 Pull Request 上还会额外执行 high/critical npm 漏洞门禁、Android debug APK + release AAB 编译和无签名 iOS Simulator 编译。
+GitHub Actions 在 Pull Request 上还会额外执行 high/critical npm 漏洞门禁、商店素材重新生成与规格校验、Android debug APK + release AAB 编译和无签名 iOS Simulator 编译。
 
 ## Web / PWA 部署
 
@@ -164,11 +166,14 @@ npm run sync:ios
 
 ## 商店素材与发布前占位项
 
-重新生成全部中英双语商店截图及 Google Play feature graphic：
+重新生成全部中英双语商店截图及 Google Play feature graphic，并立即校验文件集合、像素尺寸与同设备重复截图：
 
 ```bash
 npm run build
 npm run assets:store
+npm run check:store-assets
 ```
+
+当前生成集合包含 40 张双语设备截图（Google Play phone/tablet、App Store iPhone/iPad）和 1 张 Google Play feature graphic。Pull Request 的 `store-assets` job 会重新生成并校验这些图片，再上传 `boardgame-helper-store-assets` Actions artifact（保留 7 天），方便发布前人工抽查。
 
 发布前必须在 Google Play 的 Developer Contact 与 App Store 的 App Support 中填写并验证公开支持渠道，同时把隐私政策部署到稳定的 HTTPS 地址。开发者账号、签名团队、商店记录和提交动作需要由账号持有人在外部平台完成。
