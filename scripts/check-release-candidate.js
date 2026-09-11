@@ -59,8 +59,19 @@ if (manifest.app?.version !== packageJson.version) {
   throw new Error(`Release candidate version ${manifest.app?.version} does not match package.json ${packageJson.version}`);
 }
 if (manifest.android?.aab !== 'android/app-release.aab') throw new Error('Release manifest points to an unexpected Android AAB path');
+
+const certificateSha256 = manifest.android?.signingCertificateSha256;
+if (manifest.android?.signingStatus === 'verified' && !/^[0-9a-f]{64}$/.test(certificateSha256 || '')) {
+  throw new Error('Verified Android release AAB must include a 64-hex SHA-256 signing certificate fingerprint');
+}
+if (manifest.android?.signingStatus !== 'verified' && certificateSha256 != null) {
+  throw new Error(`Unsigned/unverified Android AAB must not claim a signing certificate fingerprint; got ${certificateSha256}`);
+}
 if (requireAndroidSigned && manifest.android?.signingStatus !== 'verified') {
   throw new Error(`Android release AAB must be signed for a publishable candidate; got ${manifest.android?.signingStatus || 'missing'}`);
+}
+if (requireAndroidSigned && !/^[0-9a-f]{64}$/.test(certificateSha256 || '')) {
+  throw new Error('Publishable Android release candidate is missing a valid signing certificate SHA-256 fingerprint');
 }
 if (manifest.ios?.storeBinaryIncluded !== false) throw new Error('Current release candidate must explicitly mark the iOS store binary as not included');
 
@@ -103,6 +114,7 @@ console.log(JSON.stringify({
   googlePlayScreenshots: googleScreenshotCount,
   appStoreScreenshots: appStoreScreenshotCount,
   androidSigningStatus: manifest.android.signingStatus,
+  androidSigningCertificateSha256: certificateSha256 || null,
   androidPublishable: manifest.android.signingStatus === 'verified',
   iosStoreBinaryIncluded: manifest.ios.storeBinaryIncluded,
   externalStorePrerequisites: manifest.externalStorePrerequisites
