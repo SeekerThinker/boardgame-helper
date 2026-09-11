@@ -1,0 +1,24 @@
+Board Game Assistant - Round Timer and Scorekeeper
+
+Board Game Assistant is built for offline board game hosts. It focuses on the real table flow: who is acting, how much time is left, how the current round is scored, how past scores can be corrected, how random table decisions stay fair, and how the game is settled.
+
+Core features:
+• Flow screen: active player, large timer, round scoring and next-round controls in one place
+• Timer modes: turn timer, personal clock, shared time pool and phase/discussion countdown
+• Score templates: victory points, reward/penalty, low-score wins, cooperative campaign and match scoring
+• Editable history: review and correct every round, then automatically recalculate totals and ranking
+• Tabletop toolbox: dice/coin, random first player, turn-order shuffle and balanced 2–4 team assignment
+• Background alerts: with notification permission, a local system alert fires when an active timer reaches zero
+• Final results: sort by high-score or low-score rules and copy the session summary
+• Offline privacy: no account, no network requirement, no ads and no analytics SDK
+
+Use it for:
+• Strategy games with long turns
+• Party games with frequent score changes
+• Low-score and penalty-point games
+• Cooperative campaign scoring
+• Chess-like and abstract match play
+
+Board Game Assistant is not a rules database and does not replace the game. It is a focused table tool for timing, round scoring and final results.
+
+Version 1.0

@@ -1,5 +1,12 @@
 {
   "appId": "com.boardgame.timer",
-  "appName": "BoardGameTimer",
-  "webDir": "dist"
+  "appName": "桌游助手",
+  "webDir": "dist",
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_timer",
+      "iconColor": "#20C7B5",
+      "presentationOptions": ["sound", "banner", "list"]
+    }
+  }
 }
