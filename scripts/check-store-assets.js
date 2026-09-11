@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -61,10 +62,14 @@ function jpegSize(buffer, file) {
   throw new Error(`${file}: JPEG dimensions not found`);
 }
 
-function assertDimensions(relative, expectedWidth, expectedHeight) {
+function readAsset(relative) {
   const absolute = path.join(root, relative);
   if (!fs.existsSync(absolute)) throw new Error(`${relative}: missing`);
-  const buffer = fs.readFileSync(absolute);
+  return fs.readFileSync(absolute);
+}
+
+function assertDimensions(relative, expectedWidth, expectedHeight) {
+  const buffer = readAsset(relative);
   const size = relative.endsWith('.png') ? pngSize(buffer, relative) : jpegSize(buffer, relative);
   if (size.width !== expectedWidth || size.height !== expectedHeight) {
     throw new Error(`${relative}: expected ${expectedWidth}x${expectedHeight}, got ${size.width}x${size.height}`);
@@ -83,6 +88,19 @@ function assertExactScreenshotSet(directory, expectedNames) {
   }
 }
 
+function assertDistinctDeviceScreenshots(locale, spec) {
+  const seen = new Map();
+  for (const screen of screens) {
+    const relative = `${spec.root}/${locale}/${spec.device}-${screen}.png`;
+    const hash = crypto.createHash('sha256').update(readAsset(relative)).digest('hex');
+    const previous = seen.get(hash);
+    if (previous) {
+      throw new Error(`${spec.device}/${locale}: duplicate screenshots ${previous} and ${screen}`);
+    }
+    seen.set(hash, screen);
+  }
+}
+
 let screenshotCount = 0;
 for (const locale of locales) {
   for (const storeRoot of ['google-play-assets/screenshots', 'app-store-assets/screenshots']) {
@@ -97,6 +115,7 @@ for (const locale of locales) {
       assertDimensions(relative, spec.width, spec.height);
       screenshotCount += 1;
     }
+    assertDistinctDeviceScreenshots(locale, spec);
   }
 }
 
@@ -110,8 +129,8 @@ console.log(JSON.stringify({
   totalImages: screenshotCount + 1,
   checks: [
     'exact screenshot filenames',
-    'Google Play phone/tablet dimensions',
-    'App Store iPhone/iPad dimensions',
+    'expected screenshot dimensions',
+    'no duplicate screenshots per device and locale',
     'Google Play feature graphic dimensions'
   ]
 }, null, 2));
