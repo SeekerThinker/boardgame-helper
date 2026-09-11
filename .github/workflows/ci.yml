@@ -38,6 +38,33 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run check
 
+  store-assets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      - name: Generate store assets
+        run: npm run assets:store
+      - name: Validate store asset files and dimensions
+        run: npm run check:store-assets
+      - name: Upload store assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: boardgame-helper-store-assets
+          path: |
+            google-play-assets/feature-graphic-1024x500.jpg
+            google-play-assets/screenshots/
+            app-store-assets/screenshots/
+          if-no-files-found: error
+          retention-days: 7
+
   android:
     runs-on: ubuntu-latest
     timeout-minutes: 30

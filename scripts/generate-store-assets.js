@@ -76,6 +76,11 @@ async function waitForServer() {
 }
 
 async function captureView(page, screen, outputPath) {
+  await page.evaluate(() => {
+    document.documentElement.style.scrollBehavior = 'auto';
+    window.scrollTo(0, 0);
+  });
+
   if (screen === '01-flow') await page.locator('[data-tab="flow"]').click();
   if (screen === '02-score' || screen === '03-history') await page.locator('[data-tab="score"]').click();
   if (screen === '04-tools') await page.locator('[data-tab="tools"]').click();
@@ -90,15 +95,20 @@ async function captureView(page, screen, outputPath) {
     await page.reload();
     await page.locator('[data-tab="summary"]').click();
   }
+
   if (screen === '03-history') {
-    await page.locator('.round-history').scrollIntoViewIfNeeded();
-  } else {
-    await page.evaluate(() => {
-      document.documentElement.style.scrollBehavior = 'auto';
-      window.scrollTo(0, 0);
+    // Compose a focused history view using the real rendered history column.
+    // This avoids duplicate iPad screenshots when the whole score page fits in
+    // a tall viewport, while keeping the app header and tab context visible.
+    await page.locator('.score-layout').evaluate(layout => {
+      const editorColumn = layout.firstElementChild;
+      if (editorColumn) editorColumn.style.display = 'none';
+      layout.style.gridTemplateColumns = 'minmax(0, 1fr)';
     });
-    await page.waitForTimeout(50);
+    await page.evaluate(() => window.scrollTo(0, 0));
   }
+
+  await page.waitForTimeout(50);
   await page.screenshot({ path: outputPath, type: 'png', animations: 'disabled' });
 }
 
