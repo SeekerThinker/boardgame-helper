@@ -18,7 +18,9 @@
     "test": "npm run test:unit && npm run test:e2e && npm run test:e2e:subpath",
     "check:versions": "node scripts/check-native-versions.js",
     "version:sync": "node scripts/check-native-versions.js --write",
-    "check": "npm run build && npm run check:versions && npm test",
+    "check:release-metadata": "node scripts/check-release-metadata.js",
+    "release:sync": "npm run version:sync && node scripts/check-release-metadata.js --write",
+    "check": "npm run build && npm run check:versions && npm run check:release-metadata && npm test",
     "assets:store": "node scripts/generate-store-assets.js",
     "check:store-assets": "node scripts/check-store-assets.js"
   },
