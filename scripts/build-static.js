@@ -19,6 +19,20 @@ for (const relative of files) {
 
 fs.cpSync(path.join(root, 'src'), path.join(dist, 'src'), { recursive: true });
 
+// The source app is also served directly by `npm run dev`, where `/sw.js` is
+// valid. Published builds can live below an origin path (for example GitHub
+// Pages), so make the copied module resolve its worker relative to itself.
+const appEntryPath = path.join(dist, 'src', 'app.js');
+const appEntrySource = fs.readFileSync(appEntryPath, 'utf8');
+const rootWorkerRegistration = "navigator.serviceWorker.register('/sw.js')";
+if (!appEntrySource.includes(rootWorkerRegistration)) {
+  throw new Error('Expected service worker registration was not found in src/app.js');
+}
+fs.writeFileSync(
+  appEntryPath,
+  appEntrySource.replace(rootWorkerRegistration, "navigator.serviceWorker.register(new URL('../sw.js', import.meta.url))")
+);
+
 // Stamp the service worker's cache name with a content hash of everything it
 // precaches, so each published build gets a fresh cache and stale shells are
 // never served after an update.
