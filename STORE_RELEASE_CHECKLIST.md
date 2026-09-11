@@ -18,9 +18,13 @@
   - 应用标题、简短描述、完整描述
   - 中英文手机/平板截图：流程、计分、历史、工具、结算
   - 1024 图标和 1024×500 feature graphic
-  - release APK/AAB 构建流程（正式上传包需配置发布签名）
+  - release APK/AAB 构建流程
+  - Android release signing 的本机环境变量和 GitHub Actions secret 注入路径
+  - AAB 签名状态与 SHA-256 自动验证
 - 账号持有人仍需完成：
+  - 配置真实发布/上传 keystore；普通 PR CI 产出的 release AAB 未注入密钥，仅用于构建验证
   - 隐私政策 HTTPS 地址
+  - Developer Contact
   - Data Safety：无数据收集、无数据共享
   - App content 中的 `SCHEDULE_EXACT_ALARM` 声明（Alarms & Reminders）：核心用途是桌游倒计时准点提醒。注意使用 `SCHEDULE_EXACT_ALARM` 而非 `USE_EXACT_ALARM`，后者仅限闹钟/日历类应用，易触发拒审。
   - 内容分级问卷
@@ -28,15 +32,25 @@
 
 ## Apple App Store
 
-- 当前状态：仓库已生成中英文本地化、隐私清单和 iPhone/iPad 素材；尚未配置开发者 Team 和 App Store Connect。
+- 当前状态：仓库已生成中英文本地化、隐私清单和 iPhone/iPad 素材，并在 CI 中做无签名 Simulator 编译；尚未配置开发者 Team 和 App Store Connect。
 - 同步命令：`npm run sync:ios`。
 - 需要在 Xcode / App Store Connect 完成：
   - Bundle ID 与 Apple Developer Team
   - 签名证书和 Provisioning Profile
   - App Store Connect 应用记录
   - App Privacy：不收集数据
+  - App Support 与隐私政策 HTTPS URL
   - 上传仓库内截图和描述，完成年龄分级和审核备注
   - 在完整 Xcode 中验证通知、iPhone/iPad 布局并 Archive
+
+## Release Candidate 完整性
+
+Pull Request CI 在 `audit`、`check`、`store-assets`、`android`、`ios` 全部成功后，会额外生成统一 `boardgame-helper-release-candidate` artifact。其中包含 Web/PWA、Android AAB、商店素材、listing/隐私/发布清单、`release-manifest.json` 与 `SHA256SUMS.txt`。
+
+- 普通 CI 的 AAB 不注入发布密钥，`release-manifest.json` 必须标记为 `android.signingStatus=unsigned`；该包不可直接上传 Google Play。
+- GitHub Actions 的手动 **Release Candidate** 工作流要求 `BGA_ANDROID_KEYSTORE_BASE64`、`BGA_STORE_PASSWORD`、`BGA_KEY_ALIAS`、`BGA_KEY_PASSWORD` 四个 secrets，只有 `jarsigner` 验证为 `verified` 才会输出 `boardgame-helper-signed-release-candidate`。
+- iOS 商店二进制不在自动 RC 中伪造；manifest 必须标记 `ios.storeBinaryIncluded=false`，直到真实 Apple Team/证书/Profile 可用并完成 Archive/export。
+- RC 中除 `SHA256SUMS.txt` 自身外的所有文件必须被 SHA-256 清单覆盖，且校验无遗漏/多余文件。
 
 ## 截图顺序
 
@@ -57,6 +71,8 @@
 - 防误触：重置整局、删除玩家、删除计分栏位都有确认。
 - 后台通知：Android 13+ 和 iOS 首次授权、拒绝、再次打开三条路径均验证。
 - 支持渠道：在 Google Play 的 Developer Contact 与 App Store 的 App Support 中填写并验证公开联系方式。
+- Android 正式候选包：`release-manifest.json` 中 `android.signingStatus` 必须为 `verified`。
+- iOS 正式候选包：在真实 Apple Developer Team 下完成 Archive/export 并在真机复验通知与后台恢复。
 
 ## 版本与发布元数据
 
@@ -78,6 +94,10 @@ npm run build:android:debug
 npm run build:android:release
 npm run assets:store
 npm run check:store-assets
+npm run release:candidate
+npm run check:release-candidate
 ```
 
 `npm run check:release-metadata` 会校验 Web/Android/iOS 版本与 build metadata、Google Play 包名/target SDK、Android 通知与精确闹钟权限、iOS 无追踪/无数据收集隐私清单，以及本发布清单是否与工程一致。
+
+`npm run check:release-candidate` 会校验统一 RC 的关键文件、版本、Google Play/App Store 各 20 张截图、完整 SHA-256 文件集合和 Android AAB 签名状态。正式签名工作流额外使用 `--require-android-signed`，因此 unsigned/invalid AAB 会直接失败。
