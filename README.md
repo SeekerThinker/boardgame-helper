@@ -26,14 +26,15 @@
 - `src/audio.js`：音效、震动和语音倒计时
 - `src/style.css`：移动端界面样式
 - `scripts/build-static.js`：生成 `dist/`
+- `scripts/check-native-versions.js`：检查/同步 Web、Android、iOS 版本号
 - `scripts/serve-static.js`：本地预览服务
 - `android/`：Capacitor Android 工程
 - `ios/`：Capacitor iOS 工程
 - `google-play-assets/`：Google Play 文案、隐私政策、图标、feature graphic 与双语截图
 - `app-store-assets/`：iPhone/iPad 双语截图
 - `STORE_RELEASE_CHECKLIST.md`：Google Play 和 App Store 上架准备清单
-- `tests/e2e/run-e2e.js`：冒烟测试
-- `.github/workflows/ci.yml`：CI 流水线（推送/PR 时自动执行完整 `npm run check`）
+- `tests/e2e/run-e2e.js`：真实 Chromium 端到端测试
+- `.github/workflows/ci.yml`：CI 流水线（npm 安全审计、Web 测试、Android debug 编译、iOS Simulator 编译）
 
 ## 开发
 
@@ -47,7 +48,7 @@ npm run dev
 node scripts/serve-static.js
 ```
 
-## 构建
+## 构建与质量检查
 
 ```bash
 npm run build
@@ -61,11 +62,25 @@ npm run build
 npm run check
 ```
 
-它会先构建，再运行 Node 单元测试和真实 Chromium 端到端测试。首次运行若缺少浏览器：
+它会先构建，检查 `package.json` / Android / iOS 的用户可见版本是否一致，再运行 Node 单元测试和真实 Chromium 端到端测试。首次运行若缺少浏览器：
 
 ```bash
 npx playwright install chromium
 ```
+
+GitHub Actions 在 Pull Request 上还会额外执行 high/critical npm 漏洞门禁、Android `assembleDebug` 和无签名 iOS Simulator 编译。
+
+## 版本与发版
+
+`package.json` 是用户可见版本号的来源。准备新版本时，先更新 npm 版本，再同步原生工程：
+
+```bash
+npm version 1.2.0 --no-git-tag-version
+npm run version:sync
+npm run check:versions
+```
+
+`version:sync` 会把 Android `versionName` 和 iOS Debug/Release `MARKETING_VERSION` 同步为 `package.json` 的版本；`npm run check` 也会执行同样的一致性校验。Android `versionCode` 和 iOS `CURRENT_PROJECT_VERSION` 是商店构建号，正式提交新构建时仍需按商店要求递增。
 
 ## Android 发布签名
 
@@ -131,7 +146,7 @@ android/app/build/outputs/bundle/release/app-release.aab
 npm run sync:ios
 ```
 
-然后用完整 Xcode 打开 `ios/App/App.xcodeproj`，选择开发团队，分别在 iPhone 与 iPad 模拟器/真机验证通知和后台恢复，再执行 Archive。仅安装 Command Line Tools 无法完成 iOS 编译与归档。
+然后用完整 Xcode 打开 `ios/App/App.xcodeproj`，选择开发团队，分别在 iPhone 与 iPad 模拟器/真机验证通知和后台恢复，再执行 Archive。GitHub Actions 会自动做无签名 Simulator 编译，但真机通知、后台行为、签名与 Archive 仍需要在真实 Apple 开发环境验证。
 
 ## 商店素材与发布前占位项
 
