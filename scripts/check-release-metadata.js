@@ -113,11 +113,7 @@ if (checklistAndroidCode !== androidVersionCode) mismatches.push(`checklist Andr
 if (checklistIosBuild !== iosBuild) mismatches.push(`checklist iOS build is ${checklistIosBuild}, expected ${iosBuild}`);
 if (checklistPackage !== applicationId) mismatches.push(`checklist package is ${checklistPackage}, expected ${applicationId}`);
 if (checklistTargetSdk !== targetSdk) mismatches.push(`checklist target SDK is ${checklistTargetSdk}, expected ${targetSdk}`);
-if (!checklist.includes('`SCHEDULE_EXACT_ALARM`') || checklist.includes('`USE_EXACT_ALARM` 以')) {
-  // The checklist must explicitly name the permitted exact-alarm declaration and
-  // must not accidentally recommend USE_EXACT_ALARM as the app permission.
-  if (!checklist.includes('`SCHEDULE_EXACT_ALARM`')) mismatches.push('checklist does not mention SCHEDULE_EXACT_ALARM');
-}
+if (!checklist.includes('`SCHEDULE_EXACT_ALARM`')) mismatches.push('checklist does not mention SCHEDULE_EXACT_ALARM');
 
 if (mismatches.length) {
   throw new Error(`Release metadata mismatch: ${mismatches.join('; ')}. Run npm run release:sync.`);
