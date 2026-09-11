@@ -1,5 +1,3 @@
-Board Game Assistant - Round Timer and Scorekeeper
-
 Board Game Assistant is built for offline board game hosts. It focuses on the real table flow: who is acting, how much time is left, how the current round is scored, how past scores can be corrected, how random table decisions stay fair, and how the game is settled.
 
 Core features:
@@ -20,5 +18,3 @@ Use it for:
 • Chess-like and abstract match play
 
 Board Game Assistant is not a rules database and does not replace the game. It is a focused table tool for timing, round scoring and final results.
-
-Version 1.0

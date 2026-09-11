@@ -20,7 +20,8 @@
     "version:sync": "node scripts/check-native-versions.js --write",
     "check:release-metadata": "node scripts/check-release-metadata.js",
     "release:sync": "npm run version:sync && node scripts/check-release-metadata.js --write",
-    "check": "npm run build && npm run check:versions && npm run check:release-metadata && npm test",
+    "check:store-listing": "node scripts/check-store-listing.js",
+    "check": "npm run build && npm run check:versions && npm run check:release-metadata && npm run check:store-listing && npm test",
     "assets:store": "node scripts/generate-store-assets.js",
     "check:store-assets": "node scripts/check-store-assets.js"
   },

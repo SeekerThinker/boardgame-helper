@@ -1,0 +1,30 @@
+{
+  "googlePlay": {
+    "en": {
+      "name": "Board Game Assistant",
+      "shortDescription": "Offline board game timer, scorekeeper, random tools and results.",
+      "fullDescriptionFile": "google-play-assets/play-store-description-en.txt"
+    },
+    "zh": {
+      "name": "桌游助手",
+      "shortDescription": "离线桌游计时、计分、随机工具与结算助手",
+      "fullDescriptionFile": "google-play-assets/play-store-description-zh.txt"
+    }
+  },
+  "appStore": {
+    "en": {
+      "name": "Board Game Assistant",
+      "subtitle": "Timer, Scores & Table Tools",
+      "keywords": "dice,turns,party,offline,randomizer,history,ranking,teams",
+      "descriptionFile": "app-store-assets/description-en.txt"
+    },
+    "zh": {
+      "name": "桌游助手",
+      "subtitle": "回合计时、计分与桌面工具",
+      "keywords": "胜利点,随机首家,行动顺序,聚会游戏,离线工具,历史更正,团队分组",
+      "descriptionFile": "app-store-assets/description-zh.txt"
+    }
+  },
+  "localPrivacyPolicyFile": "privacy.html",
+  "storePrivacyPolicyCopy": "google-play-assets/privacy-policy.html"
+}
