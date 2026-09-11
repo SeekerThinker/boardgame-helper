@@ -30,8 +30,8 @@
 - `scripts/check-release-metadata.js`：检查发布清单、原生 build metadata、Android 权限与 iOS 隐私声明
 - `scripts/generate-store-assets.js`：生成 Google Play / App Store 双语截图与 feature graphic
 - `scripts/check-store-assets.js`：校验商店素材文件集合、像素尺寸与重复截图
-- `scripts/prepare-release-candidate.js`：把 Web、Android AAB、商店文案/素材、隐私与发布清单组装为统一 RC，并生成 SHA-256 清单
-- `scripts/check-release-candidate.js`：校验 RC 文件集合、版本、截图数量、AAB 签名状态与全部 SHA-256
+- `scripts/prepare-release-candidate.js`：把 Web、Android AAB、商店文案/素材、隐私与发布清单组装为统一 RC，并生成 SHA-256 清单；已签名 AAB 还会记录签名证书 SHA-256 指纹
+- `scripts/check-release-candidate.js`：校验 RC 文件集合、版本、截图数量、AAB 签名/证书指纹与全部 SHA-256
 - `scripts/serve-static.js`：本地预览服务（支持 `BASE_PATH` 子路径模拟）
 - `store-listing.json`：Google Play / App Store 中英文结构化 listing 元数据
 - `android/`：Capacitor Android 工程
@@ -41,7 +41,7 @@
 - `STORE_RELEASE_CHECKLIST.md`：Google Play 和 App Store 上架准备清单
 - `tests/e2e/run-e2e.js`：真实 Chromium 端到端测试
 - `tests/e2e/run-subpath-e2e.js`：PWA 子路径部署、Service Worker 与离线回归测试
-- `.github/workflows/ci.yml`：CI 流水线（安全审计、Web 测试、商店素材、Android APK/AAB、iOS Simulator 编译、统一 RC artifact）
+- `.github/workflows/ci.yml`：CI 流水线（安全审计、Web 测试、商店素材、Android APK/AAB、Android 临时签名 smoke test、iOS Simulator 编译、统一 RC artifact）
 - `.github/workflows/release.yml`：手动签名 Release Candidate 工作流
 
 ## 开发
@@ -76,7 +76,7 @@ npm run check
 npx playwright install chromium
 ```
 
-GitHub Actions 在 Pull Request 上还会额外执行 high/critical npm 漏洞门禁、商店素材重新生成与规格校验、Android debug APK + release AAB 编译和无签名 iOS Simulator 编译。五个基础 job 全部成功后，`release-candidate` job 会下载同一次 run 的 Android 与商店素材 artifact，生成一个统一 `boardgame-helper-release-candidate` artifact，并校验其 SHA-256 清单与发布状态。
+GitHub Actions 在 Pull Request 上还会额外执行 high/critical npm 漏洞门禁、商店素材重新生成与规格校验、Android debug APK + unsigned release AAB 编译、Android 发布签名注入 smoke test，以及无签名 iOS Simulator 编译。Android smoke test 会在 runner 临时生成测试 keystore，模拟 Base64 解码和 `BGA_*` 环境变量注入，重建 signed AAB，并要求 `jarsigner` 与证书 SHA-256 检查通过；测试 key 不进入 artifact，也不会被当成正式发布密钥。五个基础 job 全部成功后，`release-candidate` job 会下载同一次 run 中在 smoke test 之前上传的 unsigned Android artifact 与商店素材，生成统一 `boardgame-helper-release-candidate` artifact，并校验其 SHA-256 清单与发布状态。
 
 ## Web / PWA 部署
 
@@ -111,7 +111,7 @@ npm run check
 - `android/app-release.aab`：Android release bundle
 - `store-assets/`：Google Play / App Store 当前生成截图与 feature graphic
 - `metadata/`：结构化 listing、完整描述、隐私政策副本与发布清单
-- `release-manifest.json`：版本、Android 包名/build/target SDK、AAB 签名状态、iOS build 状态和仍需账号持有人完成的外部前置条件
+- `release-manifest.json`：版本、Android 包名/build/target SDK、AAB 签名状态与签名证书 SHA-256（若已签名）、iOS build 状态和仍需账号持有人完成的外部前置条件
 - `SHA256SUMS.txt`：除自身外 RC 中全部文件的 SHA-256
 
 在已经生成 `dist/`、商店素材和 Android AAB 的环境中可运行：
@@ -121,9 +121,9 @@ npm run release:candidate
 npm run check:release-candidate
 ```
 
-普通 PR CI 的 Android AAB 不注入发布密钥，因此 `release-manifest.json` 会把它明确标记为 `unsigned`，该 artifact 用于完整性验收，**不能冒充可上传 Google Play 的正式包**。
+普通 PR CI 的 Android AAB 不注入发布密钥，因此 `release-manifest.json` 会把它明确标记为 `unsigned`，且 `signingCertificateSha256` 为 `null`；该 artifact 用于完整性验收，**不能冒充可上传 Google Play 的正式包**。
 
-GitHub Actions 的 **Release Candidate** 手动工作流会要求真实 Android 发布签名 secrets，构建后再次用 `jarsigner` 验证；只有签名状态为 `verified` 时 `npm run check:release-candidate -- --require-android-signed` 才会通过并上传 `boardgame-helper-signed-release-candidate`。
+GitHub Actions 的 **Release Candidate** 手动工作流会要求真实 Android 发布签名 secrets，构建后再次用 `jarsigner` 验证并读取签名证书 SHA-256 指纹；只有签名状态为 `verified` 且存在合法 64 位十六进制证书指纹时，`npm run check:release-candidate -- --require-android-signed` 才会通过并上传 `boardgame-helper-signed-release-candidate`。
 
 ## Android 发布签名
 
@@ -146,7 +146,7 @@ npm run build:android:release
 - `BGA_KEY_ALIAS`
 - `BGA_KEY_PASSWORD`
 
-工作流会把 keystore 临时解码到 runner 的临时目录，不写入仓库或 artifact；随后通过现有 `BGA_*` 环境变量完成签名。
+工作流会把 keystore 临时解码到 runner 的临时目录，不写入仓库或 artifact；随后通过现有 `BGA_*` 环境变量完成签名。常规 CI 会用一次性临时测试 key 演练相同的 Base64 解码、环境变量注入、Gradle 签名和证书读取路径，因此不需要真实密钥也能持续发现签名管线回归。
 
 ## 本机 Android Debug 包
 
@@ -212,4 +212,4 @@ npm run check:store-assets
 
 当前生成集合包含 40 张双语设备截图（Google Play phone/tablet、App Store iPhone/iPad）和 1 张 Google Play feature graphic。Pull Request 的 `store-assets` job 会重新生成并校验这些图片，再上传 `boardgame-helper-store-assets` Actions artifact（保留 7 天），方便发布前人工抽查。
 
-代码仓库能自动完成的字段、素材、构建与完整性门禁已经尽量自动化；以下信息必须来自真实外部账号，仓库不会生成假占位值：Google Play Developer Contact、App Store App Support、稳定 HTTPS 隐私政策 URL、Google Play Console Data Safety/App content/内容分级，以及 App Store Connect 应用记录、年龄分级和审核信息。
+代码仓库能自动完成的字段、素材、构建、签名管线 smoke test 与完整性门禁已经尽量自动化；以下信息必须来自真实外部账号，仓库不会生成假占位值：Google Play Developer Contact、App Store App Support、稳定 HTTPS 隐私政策 URL、Google Play Console Data Safety/App content/内容分级，以及 App Store Connect 应用记录、年龄分级和审核信息。
