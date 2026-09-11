@@ -76,6 +76,12 @@ async function waitForServer() {
 }
 
 async function captureView(page, screen, outputPath) {
+  await page.evaluate(() => {
+    document.documentElement.style.scrollBehavior = 'auto';
+    document.body.style.paddingBottom = '';
+    window.scrollTo(0, 0);
+  });
+
   if (screen === '01-flow') await page.locator('[data-tab="flow"]').click();
   if (screen === '02-score' || screen === '03-history') await page.locator('[data-tab="score"]').click();
   if (screen === '04-tools') await page.locator('[data-tab="tools"]').click();
@@ -90,15 +96,17 @@ async function captureView(page, screen, outputPath) {
     await page.reload();
     await page.locator('[data-tab="summary"]').click();
   }
+
   if (screen === '03-history') {
-    await page.locator('.round-history').scrollIntoViewIfNeeded();
-  } else {
-    await page.evaluate(() => {
-      document.documentElement.style.scrollBehavior = 'auto';
-      window.scrollTo(0, 0);
-    });
-    await page.waitForTimeout(50);
+    // Tall tablet viewports can fit both the score editor and history section,
+    // which makes scrollIntoViewIfNeeded() a no-op and produces a duplicate of
+    // the score screenshot. Temporary bottom space guarantees enough scroll
+    // range to anchor the history section at the top without changing app UI.
+    await page.evaluate(() => { document.body.style.paddingBottom = '100vh'; });
+    await page.locator('.round-history').evaluate(element => element.scrollIntoView({ block: 'start', behavior: 'auto' }));
   }
+
+  await page.waitForTimeout(50);
   await page.screenshot({ path: outputPath, type: 'png', animations: 'disabled' });
 }
 
