@@ -75,6 +75,47 @@ test('malformed identifiers and tool data are normalized safely', () => {
   assert.doesNotThrow(() => addScoreField(state, 'Extra'));
 });
 
+test('unsafe persisted identifiers are sanitized and references stay connected', () => {
+  const rawPlayerId = 'player:1" data-x="boom';
+  const rawFieldId = 'victory points:main';
+  const state = normalizeState({
+    players: [
+      { id: rawPlayerId, name: 'Alice' },
+      { id: 'player:2', name: 'Bob' }
+    ],
+    timer: { activePlayerId: rawPlayerId },
+    score: {
+      fields: [{ id: rawFieldId, customName: 'VP', step: 1, effect: 1 }],
+      rounds: [{ round: 1, scores: { [rawPlayerId]: { [rawFieldId]: 9 } } }],
+      undoStack: [{ kind: 'score', round: 1, playerId: rawPlayerId, fieldId: rawFieldId, previous: 4, next: 9, label: 'score.edit' }]
+    },
+    tools: {
+      lastFirstPlayerId: rawPlayerId,
+      shuffledPlayerIds: ['player:2', rawPlayerId],
+      teams: [{ playerIds: [rawPlayerId, 'player:2'] }],
+      history: [{ type: 'first', playerId: rawPlayerId }]
+    }
+  });
+
+  const [alice, bob] = state.players;
+  const [field] = state.score.fields;
+  assert.match(alice.id, /^[a-zA-Z0-9_-]+$/);
+  assert.match(bob.id, /^[a-zA-Z0-9_-]+$/);
+  assert.match(field.id, /^[a-zA-Z0-9_-]+$/);
+  assert.equal(state.timer.activePlayerId, alice.id);
+  assert.equal(roundScoreValue(state.score.rounds[0], alice.id, field.id), 9);
+  assert.equal(alice.score, 9);
+  assert.equal(state.tools.lastFirstPlayerId, alice.id);
+  assert.deepEqual(state.tools.shuffledPlayerIds, [bob.id, alice.id]);
+  assert.deepEqual(state.tools.teams[0].playerIds, [alice.id, bob.id]);
+  assert.equal(state.tools.history[0].playerId, alice.id);
+
+  const change = undoScore(state);
+  assert.equal(change.playerId, alice.id);
+  assert.equal(change.fieldId, field.id);
+  assert.equal(roundScoreValue(state.score.rounds[0], alice.id, field.id), 4);
+});
+
 test('roster changes invalidate stale order and team previews', () => {
   const state = createDefaultState();
   state.tools.shuffledPlayerIds = state.players.map(player => player.id);

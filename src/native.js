@@ -108,8 +108,18 @@ export function observeAppState(callback) {
   const plugin = capacitorPlugin('App');
   if (plugin?.addListener) {
     let handle = null;
-    plugin.addListener('appStateChange', state => callback(Boolean(state.isActive))).then(result => { handle = result; }).catch(() => {});
-    appStateCleanup = () => handle?.remove?.();
+    let disposed = false;
+    plugin.addListener('appStateChange', state => callback(Boolean(state.isActive)))
+      .then(result => {
+        handle = result;
+        if (disposed) handle?.remove?.();
+      })
+      .catch(() => {});
+    appStateCleanup = () => {
+      disposed = true;
+      try { handle?.remove?.(); } catch (_) {}
+      handle = null;
+    };
     return appStateCleanup;
   }
   const listener = () => callback(document.visibilityState === 'visible');
