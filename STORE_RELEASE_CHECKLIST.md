@@ -7,7 +7,7 @@
 - 核心定位：桌游聚会主持人的局内流程控制器
 - 首版商业模式：免费、无广告、无账号
 - 首版隐私策略：不采集个人数据、不接入分析 SDK、不依赖网络
-- 版本：1.0.0（Android versionCode 1 / iOS build 1）
+- 版本：1.1.0（Android versionCode 1 / iOS build 1）
 
 ## Google Play
 
@@ -18,7 +18,7 @@
   - 应用标题、简短描述、完整描述
   - 中英文手机/平板截图：流程、计分、历史、工具、结算
   - 1024 图标和 1024×500 feature graphic
-  - 签名 release APK/AAB（本地构建后位于上述路径）
+  - release APK/AAB 构建流程（正式上传包需配置发布签名）
 - 账号持有人仍需完成：
   - 隐私政策 HTTPS 地址
   - Data Safety：无数据收集、无数据共享
@@ -58,12 +58,26 @@
 - 后台通知：Android 13+ 和 iOS 首次授权、拒绝、再次打开三条路径均验证。
 - 支持渠道：在 Google Play 的 Developer Contact 与 App Store 的 App Support 中填写并验证公开联系方式。
 
+## 版本与发布元数据
+
+`package.json` 是用户可见版本源。更新版本后，使用：
+
+```bash
+npm run release:sync
+```
+
+它会同步 Android `versionName`、iOS `MARKETING_VERSION`，并把本清单中的版本、Android versionCode、iOS build、包名和 target SDK 更新为工程当前值。Android `versionCode` 与 iOS `CURRENT_PROJECT_VERSION` 仍需在提交新商店构建时主动递增。
+
 ## 自动验证命令
 
 ```bash
 npm run check
+npm run check:release-metadata
 npm run sync:android
 npm run build:android:debug
 npm run build:android:release
 npm run assets:store
+npm run check:store-assets
 ```
+
+`npm run check:release-metadata` 会校验 Web/Android/iOS 版本与 build metadata、Google Play 包名/target SDK、Android 通知与精确闹钟权限、iOS 无追踪/无数据收集隐私清单，以及本发布清单是否与工程一致。

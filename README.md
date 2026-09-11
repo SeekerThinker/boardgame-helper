@@ -26,7 +26,8 @@
 - `src/audio.js`：音效、震动和语音倒计时
 - `src/style.css`：移动端界面样式
 - `scripts/build-static.js`：生成 `dist/`
-- `scripts/check-native-versions.js`：检查/同步 Web、Android、iOS 版本号
+- `scripts/check-native-versions.js`：检查/同步 Web、Android、iOS 用户版本号
+- `scripts/check-release-metadata.js`：检查发布清单、原生 build metadata、Android 权限与 iOS 隐私声明
 - `scripts/generate-store-assets.js`：生成 Google Play / App Store 双语截图与 feature graphic
 - `scripts/check-store-assets.js`：校验商店素材文件集合、像素尺寸与重复截图
 - `scripts/serve-static.js`：本地预览服务（支持 `BASE_PATH` 子路径模拟）
@@ -65,7 +66,7 @@ npm run build
 npm run check
 ```
 
-它会先构建，检查 `package.json` / Android / iOS 的用户可见版本是否一致，再运行 Node 单元测试、根路径 Chromium E2E，以及挂载到 `/boardgame-helper/` 的子路径 PWA E2E。首次运行若缺少浏览器：
+它会先构建，检查 `package.json` / Android / iOS 的用户可见版本是否一致，再校验发布清单与原生 build metadata、Android 发布权限和 iOS 隐私声明，最后运行 Node 单元测试、根路径 Chromium E2E，以及挂载到 `/boardgame-helper/` 的子路径 PWA E2E。首次运行若缺少浏览器：
 
 ```bash
 npx playwright install chromium
@@ -88,15 +89,15 @@ BASE_PATH=/boardgame-helper/ node scripts/serve-static.js dist
 
 ## 版本与发版
 
-`package.json` 是用户可见版本号的来源。准备新版本时，先更新 npm 版本，再同步原生工程：
+`package.json` 是用户可见版本号的来源。准备新版本时，先更新 npm 版本，再使用统一发布同步命令：
 
 ```bash
 npm version 1.2.0 --no-git-tag-version
-npm run version:sync
-npm run check:versions
+npm run release:sync
+npm run check
 ```
 
-`version:sync` 会把 Android `versionName` 和 iOS Debug/Release `MARKETING_VERSION` 同步为 `package.json` 的版本；`npm run check` 也会执行同样的一致性校验。Android `versionCode` 和 iOS `CURRENT_PROJECT_VERSION` 是商店构建号，正式提交新构建时仍需按商店要求递增。
+`release:sync` 会先把 Android `versionName` 和 iOS Debug/Release `MARKETING_VERSION` 同步为 `package.json` 的版本，再把 `STORE_RELEASE_CHECKLIST.md` 中的用户版本、Android `versionCode`、iOS `CURRENT_PROJECT_VERSION`、包名和 target SDK 回写为工程当前值。Android `versionCode` 和 iOS `CURRENT_PROJECT_VERSION` 是商店构建号，正式提交新构建时仍需主动递增；`npm run check:release-metadata` 会阻止发布清单与工程再次漂移。
 
 ## Android 发布签名
 
