@@ -15,13 +15,13 @@
     "en": {
       "name": "Board Game Assistant",
       "subtitle": "Timer, Scores & Table Tools",
-      "keywords": "board game,timer,scorekeeper,dice,turns,tabletop,party,offline",
+      "keywords": "dice,turns,party,offline,randomizer,history,ranking,teams",
       "descriptionFile": "app-store-assets/description-en.txt"
     },
     "zh": {
       "name": "桌游助手",
       "subtitle": "回合计时、计分与桌面工具",
-      "keywords": "桌游,计时,计分,骰子,随机,回合,聚会,离线",
+      "keywords": "胜利点,随机首家,行动顺序,聚会游戏,离线工具,历史更正,团队分组",
       "descriptionFile": "app-store-assets/description-zh.txt"
     }
   },
