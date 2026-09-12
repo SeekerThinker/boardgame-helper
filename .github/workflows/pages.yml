@@ -1,6 +1,8 @@
 name: Deploy Web Preview
 
 on:
+  push:
+    branches: [master]
   workflow_dispatch:
 
 permissions:
@@ -16,6 +18,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      pages_ready: ${{ steps.pages-status.outputs.ready }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -37,15 +41,30 @@ jobs:
           grep -q 'manifest.json' dist/index.html
           grep -q 'serviceWorker' dist/src/app.js
           touch dist/.nojekyll
+      - name: Upload downloadable web preview
+        uses: actions/upload-artifact@v7
+        with:
+          name: boardgame-helper-web-preview
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
       - name: Configure GitHub Pages
+        id: pages
+        continue-on-error: true
         uses: actions/configure-pages@v5
+      - name: Record Pages availability
+        id: pages-status
+        shell: bash
+        run: echo "ready=${{ steps.pages.outcome == 'success' }}" >> "$GITHUB_OUTPUT"
       - name: Upload Pages artifact
+        if: steps.pages.outcome == 'success'
         uses: actions/upload-pages-artifact@v4
         with:
           path: dist
 
   deploy:
     needs: build
+    if: needs.build.outputs.pages_ready == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
