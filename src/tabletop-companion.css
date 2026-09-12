@@ -1,0 +1,95 @@
+.tableos-companion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 2px;
+  padding: 10px 12px;
+  border: 1px solid rgba(45, 212, 191, .2);
+  border-radius: 12px;
+  background: rgba(13, 148, 136, .08);
+}
+
+.tableos-companion-main {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.tableos-companion-main > span {
+  display: block;
+  color: #5eead4;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.tableos-companion-main strong {
+  display: block;
+  overflow: hidden;
+  margin: 2px 0;
+  color: #f8fafc;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tableos-companion-main small {
+  color: #94a3b8;
+  line-height: 1.35;
+}
+
+.tableos-companion-main b {
+  color: #ccfbf1;
+  font-variant-numeric: tabular-nums;
+}
+
+.tableos-companion-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 7px;
+  align-items: center;
+}
+
+.tableos-companion-notice {
+  color: #99f6e4;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tableos-sheet.is-editing .tableos-companion {
+  display: none;
+}
+
+.tableos-sheet.is-playing .tableos-btn,
+.tableos-sheet.is-playing .tableos-nav button {
+  min-height: 44px;
+}
+
+.tableos-sheet.is-playing .tableos-counter button {
+  min-width: 44px;
+  height: 44px;
+}
+
+.tableos-sheet.is-playing .tableos-phase-index {
+  width: 44px;
+  height: 44px;
+}
+
+@media (max-width: 520px) {
+  .tableos-companion {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .tableos-companion-actions {
+    width: 100%;
+  }
+
+  .tableos-companion-actions .tableos-btn {
+    flex: 1 1 0;
+  }
+
+  .tableos-companion-notice {
+    text-align: center;
+  }
+}
