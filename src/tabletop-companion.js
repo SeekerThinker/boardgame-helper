@@ -1,20 +1,26 @@
 import { STORAGE_KEY } from './core.js';
 import { TABLE_OS_STORAGE_KEY } from './tabletop-core.js';
 
+const COMPANION_STORAGE_KEY = 'board-game-assistant-table-os-companion-v1';
+
 const I18N = {
   zh: {
     mainGame: '主对局', round: '第 {value} 轮', running: '进行中', paused: '已暂停', openFlow: '主计时器',
     undo: '撤销上一步', undone: '已撤销上一步。', undoUnavailable: '这一步已经无法撤销。',
     trackerAction: '状态调整', phaseAction: '阶段切换', scoreAction: '计分修改', flagAction: '检查点修改',
     increase: '增加', decrease: '减少', setValue: '设置', switchPhase: '切换到阶段',
-    rosterChanged: '主对局玩家已变更', syncRoster: '同步玩家', rosterSynced: '已同步主对局玩家。'
+    rosterChanged: '主对局玩家已变更', syncRoster: '同步玩家', rosterSynced: '已同步主对局玩家。',
+    newSessionDetected: '检测到新的主牌局', startNewSession: '开始新一局', keepTableState: '保留当前桌面',
+    newSessionStarted: '已为新牌局重置本局状态。', tableStateKept: '已保留当前桌面状态。'
   },
   en: {
     mainGame: 'Main game', round: 'Round {value}', running: 'Running', paused: 'Paused', openFlow: 'Main timer',
     undo: 'Undo last action', undone: 'Last action undone.', undoUnavailable: 'That action can no longer be undone.',
     trackerAction: 'Tracker adjustment', phaseAction: 'Phase change', scoreAction: 'Score edit', flagAction: 'Checkpoint change',
     increase: 'Increase', decrease: 'Decrease', setValue: 'Set', switchPhase: 'Switch to phase',
-    rosterChanged: 'Main-game players changed', syncRoster: 'Sync players', rosterSynced: 'Main-game players synced.'
+    rosterChanged: 'Main-game players changed', syncRoster: 'Sync players', rosterSynced: 'Main-game players synced.',
+    newSessionDetected: 'New main game detected', startNewSession: 'Start new table', keepTableState: 'Keep table state',
+    newSessionStarted: 'Session state reset for the new game.', tableStateKept: 'Current table state kept.'
   }
 };
 
@@ -58,6 +64,17 @@ function readTableOsState() {
   return readStoredState(TABLE_OS_STORAGE_KEY);
 }
 
+function readCompanionState() {
+  const stored = readStoredState(COMPANION_STORAGE_KEY);
+  return {
+    associatedMainSessionId: typeof stored?.associatedMainSessionId === 'string' ? stored.associatedMainSessionId : ''
+  };
+}
+
+function writeCompanionState(next) {
+  try { localStorage.setItem(COMPANION_STORAGE_KEY, JSON.stringify(next)); } catch (_) {}
+}
+
 function displayPlayer(game, player) {
   if (!player) return '—';
   const name = String(player.name || '').trim();
@@ -87,6 +104,51 @@ function formatClock(seconds) {
   return `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;
 }
 
+function mainSessionIdentity(game) {
+  const rounds = Array.isArray(game?.score?.rounds) ? game.score.rounds : [];
+  const firstRound = rounds.find(round => Number(round?.round) === 1);
+  const createdAt = typeof firstRound?.createdAt === 'string' ? firstRound.createdAt.trim() : '';
+  if (createdAt) return `round:${createdAt}`;
+  const startedAt = typeof game?.session?.startedAt === 'string' ? game.session.startedAt.trim() : '';
+  return startedAt ? `start:${startedAt}` : '';
+}
+
+function tableHasSessionState(table) {
+  if (!table || typeof table !== 'object') return false;
+  const trackers = Array.isArray(table.trackers) ? table.trackers : [];
+  const sessionTrackerValues = trackers.some(tracker => tracker?.persistence !== 'campaign'
+    && tracker?.values && typeof tracker.values === 'object' && Object.keys(tracker.values).length > 0);
+  const phases = table.phases && typeof table.phases === 'object' ? table.phases : {};
+  const phaseMoved = Number(phases.activeIndex || 0) !== 0 || Math.max(1, Number(phases.cycle) || 1) !== 1;
+  const rolesAssigned = Array.isArray(table.roles) && table.roles.length > 0;
+  const scoreRows = table.scoreSheet?.values && typeof table.scoreSheet.values === 'object'
+    ? Object.values(table.scoreSheet.values) : [];
+  const scoresEntered = scoreRows.some(values => values && typeof values === 'object' && Object.keys(values).length > 0);
+  return Boolean(sessionTrackerValues || phaseMoved || rolesAssigned || scoresEntered || table.campaign?.enabled);
+}
+
+function mainSessionLifecycle(game) {
+  const currentId = mainSessionIdentity(game);
+  if (!currentId) return { id: '', changed: false };
+  const stored = readCompanionState();
+  if (!stored.associatedMainSessionId) {
+    writeCompanionState({ associatedMainSessionId: currentId });
+    return { id: currentId, changed: false };
+  }
+  if (stored.associatedMainSessionId === currentId) return { id: currentId, changed: false };
+  if (!tableHasSessionState(readTableOsState())) {
+    writeCompanionState({ associatedMainSessionId: currentId });
+    return { id: currentId, changed: false };
+  }
+  return { id: currentId, changed: true };
+}
+
+function associateMainSession(sessionId) {
+  if (!sessionId) return false;
+  writeCompanionState({ associatedMainSessionId: sessionId });
+  return true;
+}
+
 function rosterNeedsSync(game) {
   const table = readTableOsState();
   const gamePlayers = Array.isArray(game?.players) ? game.players : [];
@@ -109,13 +171,16 @@ function mainGameContext() {
   if (!game || game.screen !== 'workspace') return null;
   const players = Array.isArray(game.players) ? game.players : [];
   const active = players.find(player => player.id === game.timer?.activePlayerId) || players[0] || null;
+  const lifecycle = mainSessionLifecycle(game);
   return {
     session: String(game.session?.name || '').trim() || tr('mainGame'),
     round: Math.max(1, Number(game.timer?.round) || 1),
     player: displayPlayer(game, active),
     seconds: currentTimerSeconds(game),
     running: Boolean(game.timer?.running),
-    rosterDrift: rosterNeedsSync(game)
+    rosterDrift: rosterNeedsSync(game),
+    sessionId: lifecycle.id,
+    newSession: lifecycle.changed
   };
 }
 
@@ -278,6 +343,31 @@ function syncRosterFromMain() {
   return true;
 }
 
+function keepCurrentTableState() {
+  const game = readGameState();
+  const sessionId = mainSessionIdentity(game);
+  if (!associateMainSession(sessionId)) return false;
+  lastUndo = null;
+  showNotice(tr('tableStateKept'));
+  return true;
+}
+
+function startNewTableSession() {
+  const game = readGameState();
+  const sessionId = mainSessionIdentity(game);
+  const reset = document.querySelector('[data-os-action="reset"]');
+  if (!sessionId || !(reset instanceof HTMLElement)) return false;
+  const before = localStorage.getItem(TABLE_OS_STORAGE_KEY);
+  reset.click();
+  const after = localStorage.getItem(TABLE_OS_STORAGE_KEY);
+  if (!after || after === before) return false;
+  associateMainSession(sessionId);
+  lastUndo = null;
+  if (rosterNeedsSync(game)) syncRosterFromMain();
+  showNotice(tr('newSessionStarted'));
+  return true;
+}
+
 function openMainFlow() {
   document.querySelector('.tableos-sheet [data-os-action="close"]')?.click();
   queueMicrotask(() => document.querySelector('[data-tab="flow"]')?.click());
@@ -316,11 +406,15 @@ function enhanceAccessibility(sheet) {
 }
 
 function companionMarkup(context) {
+  const alert = context?.newSession ? tr('newSessionDetected') : (context?.rosterDrift ? tr('rosterChanged') : '');
   const contextMarkup = context ? `<div class="tableos-companion-main" data-tableos-main-context>
       <span>${esc(tr('mainGame'))}</span><strong>${esc(context.session)}</strong>
-      <small>${esc(tr('round', { value: context.round }))} · ${esc(context.player)} · <b data-tableos-main-time>${esc(formatClock(context.seconds))}</b> · ${esc(context.running ? tr('running') : tr('paused'))}${context.rosterDrift ? ` · <em>${esc(tr('rosterChanged'))}</em>` : ''}</small>
+      <small>${esc(tr('round', { value: context.round }))} · ${esc(context.player)} · <b data-tableos-main-time>${esc(formatClock(context.seconds))}</b> · ${esc(context.running ? tr('running') : tr('paused'))}${alert ? ` · <em>${esc(alert)}</em>` : ''}</small>
     </div>` : '';
-  const actions = `${lastUndo ? `<button type="button" class="tableos-btn" data-tableos-companion-action="undo" title="${esc(lastUndo.label)}">↶ ${esc(tr('undo'))}</button>` : ''}${context?.rosterDrift ? `<button type="button" class="tableos-btn" data-tableos-companion-action="sync">${esc(tr('syncRoster'))}</button>` : ''}${context ? `<button type="button" class="tableos-btn" data-tableos-companion-action="flow">${esc(tr('openFlow'))}</button>` : ''}`;
+  const sessionActions = context?.newSession
+    ? `<button type="button" class="tableos-btn primary" data-tableos-companion-action="new-session">${esc(tr('startNewSession'))}</button><button type="button" class="tableos-btn" data-tableos-companion-action="keep-session">${esc(tr('keepTableState'))}</button>`
+    : (context?.rosterDrift ? `<button type="button" class="tableos-btn" data-tableos-companion-action="sync">${esc(tr('syncRoster'))}</button>` : '');
+  const actions = `${lastUndo ? `<button type="button" class="tableos-btn" data-tableos-companion-action="undo" title="${esc(lastUndo.label)}">↶ ${esc(tr('undo'))}</button>` : ''}${sessionActions}${context ? `<button type="button" class="tableos-btn" data-tableos-companion-action="flow">${esc(tr('openFlow'))}</button>` : ''}`;
   return `${contextMarkup}<div class="tableos-companion-actions">${actions}</div>${notice ? `<span class="tableos-companion-notice" role="status">${esc(notice)}</span>` : ''}`;
 }
 
@@ -335,6 +429,7 @@ function refreshCompanion() {
   wasOpen = true;
   enhanceAccessibility(sheet);
   const context = mainGameContext();
+  if (context?.newSession) lastUndo = null;
   let bar = sheet.querySelector('.tableos-companion');
   if (!context && !lastUndo && !notice) {
     bar?.remove();
@@ -389,9 +484,12 @@ document.addEventListener('click', event => {
   if (companionAction) {
     event.preventDefault();
     event.stopPropagation();
-    if (companionAction.dataset.tableosCompanionAction === 'undo') executeUndo();
-    if (companionAction.dataset.tableosCompanionAction === 'sync') syncRosterFromMain();
-    if (companionAction.dataset.tableosCompanionAction === 'flow') openMainFlow();
+    const action = companionAction.dataset.tableosCompanionAction;
+    if (action === 'undo') executeUndo();
+    if (action === 'sync') syncRosterFromMain();
+    if (action === 'new-session') startNewTableSession();
+    if (action === 'keep-session') keepCurrentTableState();
+    if (action === 'flow') openMainFlow();
     return;
   }
   if (suppressCapture) return;
@@ -424,9 +522,11 @@ observer.observe(document.body, { childList: true, subtree: true });
 
 setInterval(() => {
   const time = document.querySelector('[data-tableos-main-time]');
+  const sheet = document.querySelector('.tableos-sheet');
+  if (!time && !sheet) return;
   const context = mainGameContext();
   if (time && context) time.textContent = formatClock(context.seconds);
-  if (document.querySelector('.tableos-sheet')) queueRefresh();
+  if (sheet) queueRefresh();
 }, 1000);
 
 queueRefresh();
