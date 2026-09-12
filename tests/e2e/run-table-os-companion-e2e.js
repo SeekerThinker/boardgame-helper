@@ -19,6 +19,16 @@ async function waitForServer(target, timeoutMs = 10_000) {
   throw new Error(`Table OS companion test server did not become ready at ${target}`);
 }
 
+async function waitForTextChange(page, locator, initial, timeoutMs = 3_000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    await page.waitForTimeout(150);
+    const current = await locator.textContent();
+    if (current !== initial) return current;
+  }
+  return initial;
+}
+
 async function openTableOs(page) {
   await page.getByRole('button', { name: /高级桌游助手|Advanced Table Assistant/ }).click();
   await page.locator('.tableos-sheet').waitFor({ state: 'visible' });
@@ -47,9 +57,9 @@ async function runPrimaryFlow() {
   assert.match(contextText, /第 1 轮/);
   assert.match(contextText, /玩家 1/);
   assert.match(contextText, /进行中/);
-  const firstTime = await page.locator('[data-tableos-main-time]').textContent();
-  await page.waitForTimeout(1100);
-  const secondTime = await page.locator('[data-tableos-main-time]').textContent();
+  const timerText = page.locator('[data-tableos-main-time]');
+  const firstTime = await timerText.textContent();
+  const secondTime = await waitForTextChange(page, timerText, firstTime);
   assert.notEqual(secondTime, firstTime, 'main timer keeps ticking while Table OS is open');
 
   // Pause through the real bridge before simulating a persistent main-roster edit.
