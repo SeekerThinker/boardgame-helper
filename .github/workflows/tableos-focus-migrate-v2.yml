@@ -1,0 +1,263 @@
+name: Table OS Focus Migration v2
+
+on:
+  push:
+    branches:
+      - fix/table-os-focus-management-20260912
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: fix/table-os-focus-management-20260912
+      - name: Add modal focus management and regression coverage
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              if old not in text:
+                  raise SystemExit(f'missing {label} anchor')
+              return text.replace(old, new, 1)
+
+          path = Path('src/tabletop.js')
+          source = path.read_text()
+          source = replace_once(source,
+              "let toastTimer = null;\n",
+              "let toastTimer = null;\nlet roleRevealReturnId = null;\nconst FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input:not([disabled]):not([type=\\\"hidden\\\"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex=\\\"-1\\\"])';\n",
+              'focus constants')
+          source = replace_once(source,
+              "    launcher.addEventListener('click', () => { isOpen = true; initializeParticipants(); render(); });",
+              "    launcher.addEventListener('click', () => {\n      isOpen = true;\n      initializeParticipants();\n      render();\n      focusTableOsDialog();\n    });",
+              'launcher focus')
+          anchor = """function restoreRenderContext(context) {
+  const sheet = document.querySelector('.tableos-sheet');
+  if (sheet) sheet.scrollTop = context.scrollTop;
+  if (!context.focusSelector) return;
+  const next = document.querySelector(context.focusSelector);
+  if (next instanceof HTMLElement) next.focus({ preventScroll: true });
+}
+
+function render() {"""
+          focus_helpers = """function restoreRenderContext(context) {
+  const sheet = document.querySelector('.tableos-sheet');
+  if (sheet) sheet.scrollTop = context.scrollTop;
+  if (!context.focusSelector) return;
+  const next = document.querySelector(context.focusSelector);
+  if (next instanceof HTMLElement) next.focus({ preventScroll: true });
+}
+
+function visibleFocusableElements(container) {
+  if (!(container instanceof HTMLElement)) return [];
+  return [...container.querySelectorAll(FOCUSABLE_SELECTOR)].filter(element =>
+    element instanceof HTMLElement && element.getClientRects().length > 0 && !element.hasAttribute('hidden')
+  );
+}
+
+function focusElement(element) {
+  if (element instanceof HTMLElement) element.focus({ preventScroll: true });
+}
+
+function focusTableOsDialog() {
+  const dialog = document.querySelector('.tableos-sheet[role="dialog"]');
+  if (!(dialog instanceof HTMLElement)) return;
+  const focusable = visibleFocusableElements(dialog);
+  focusElement(dialog.querySelector('[data-os-action="close"]') || focusable[0] || dialog);
+}
+
+function focusRoleReveal() {
+  const dialog = document.querySelector('.tableos-secret[role="dialog"]');
+  if (!(dialog instanceof HTMLElement)) return;
+  focusElement(visibleFocusableElements(dialog)[0] || dialog);
+}
+
+function focusRoleTrigger(participantId) {
+  if (!participantId) return;
+  focusElement(document.querySelector(`[data-os-role-reveal="${CSS.escape(participantId)}"]`));
+}
+
+function closeRoleReveal() {
+  const participantId = roleRevealReturnId || revealedParticipantId;
+  revealedParticipantId = null;
+  revealArmed = false;
+  roleRevealReturnId = null;
+  render();
+  focusRoleTrigger(participantId);
+}
+
+function closeTableOs() {
+  isOpen = false;
+  revealedParticipantId = null;
+  revealArmed = false;
+  roleRevealReturnId = null;
+  render();
+  focusElement(document.getElementById('tableos-launcher'));
+}
+
+function trapModalFocus(event) {
+  if (event.key !== 'Tab' || !isOpen) return false;
+  const dialog = revealedParticipantId
+    ? document.querySelector('.tableos-secret[role="dialog"]')
+    : document.querySelector('.tableos-sheet[role="dialog"]');
+  if (!(dialog instanceof HTMLElement)) return false;
+  const focusable = visibleFocusableElements(dialog);
+  if (!focusable.length) {
+    event.preventDefault();
+    focusElement(dialog);
+    return true;
+  }
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  const active = document.activeElement;
+  if (!dialog.contains(active)) {
+    event.preventDefault();
+    focusElement(event.shiftKey ? last : first);
+    return true;
+  }
+  if (event.shiftKey && active === first) {
+    event.preventDefault();
+    focusElement(last);
+    return true;
+  }
+  if (!event.shiftKey && active === last) {
+    event.preventDefault();
+    focusElement(first);
+    return true;
+  }
+  return false;
+}
+
+function render() {"""
+          source = replace_once(source, anchor, focus_helpers, 'focus helpers')
+          source = replace_once(source,
+              "      <section class=\"tableos-sheet ${state.ui.mode === 'edit' ? 'is-editing' : 'is-playing'}\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"tableos-title\">",
+              "      <section class=\"tableos-sheet ${state.ui.mode === 'edit' ? 'is-editing' : 'is-playing'}\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"tableos-title\" tabindex=\"-1\">",
+              'main dialog tabindex')
+          source = replace_once(source,
+              "if (!revealArmed) return `<div class=\"tableos-secret\" role=\"dialog\" aria-modal=\"true\" aria-label=\"${attr(tr('revealFor'))}\">",
+              "if (!revealArmed) return `<div class=\"tableos-secret\" role=\"dialog\" aria-modal=\"true\" aria-label=\"${attr(tr('revealFor'))}\" tabindex=\"-1\">",
+              'covered reveal tabindex')
+          source = replace_once(source,
+              "return `<div class=\"tableos-secret\" role=\"dialog\" aria-modal=\"true\" aria-label=\"${attr(tr('revealFor'))}\">",
+              "return `<div class=\"tableos-secret\" role=\"dialog\" aria-modal=\"true\" aria-label=\"${attr(tr('revealFor'))}\" tabindex=\"-1\">",
+              'revealed dialog tabindex')
+          source = replace_once(source,
+              "    if (d.osAction === 'close') { if (event.target.closest('.tableos-sheet') && !event.target.closest('[data-os-action=\"close\"]')) return; isOpen = false; revealedParticipantId = null; revealArmed = false; render(); return; }",
+              "    if (d.osAction === 'close') { if (event.target.closest('.tableos-sheet') && !event.target.closest('[data-os-action=\"close\"]')) return; closeTableOs(); return; }",
+              'close action')
+          source = replace_once(source,
+              "    if (d.osAction === 'hide-role') { revealedParticipantId = null; revealArmed = false; render(); return; }",
+              "    if (d.osAction === 'hide-role') { closeRoleReveal(); return; }",
+              'hide role action')
+          source = replace_once(source,
+              "    if (d.osAction === 'reveal-role-now') { revealArmed = true; render(); return; }",
+              "    if (d.osAction === 'reveal-role-now') { revealArmed = true; render(); focusRoleReveal(); return; }",
+              'reveal now action')
+          source = replace_once(source,
+              "    if (d.osRoleReveal) { revealedParticipantId = d.osRoleReveal; revealArmed = false; render(); return; }",
+              "    if (d.osRoleReveal) { roleRevealReturnId = d.osRoleReveal; revealedParticipantId = d.osRoleReveal; revealArmed = false; render(); focusRoleReveal(); return; }",
+              'role trigger action')
+          source = replace_once(source,
+              """  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && revealedParticipantId) { revealedParticipantId = null; revealArmed = false; render(); return; }
+    if (event.key === 'Escape' && isOpen) { isOpen = false; render(); }
+  });""",
+              """  document.addEventListener('keydown', event => {
+    if (event.key === 'Tab' && isOpen) { trapModalFocus(event); return; }
+    if (event.key === 'Escape' && revealedParticipantId) { event.preventDefault(); closeRoleReveal(); return; }
+    if (event.key === 'Escape' && isOpen) { event.preventDefault(); closeTableOs(); }
+  });""",
+              'keydown focus handling')
+          path.write_text(source)
+
+          test_path = Path('tests/e2e/run-table-os-e2e.js')
+          test = test_path.read_text()
+          helper_anchor = """async function assertNoHorizontalOverflow(page, label) {
+  const metrics = await page.evaluate(() => ({ width: innerWidth, scrollWidth: document.documentElement.scrollWidth }));
+  assert.ok(metrics.scrollWidth <= metrics.width + 1, `${label} should not horizontally overflow: ${JSON.stringify(metrics)}`);
+}
+"""
+          helper = helper_anchor + """
+async function assertFocusTrapped(page, dialogSelector, label) {
+  const focusableSelector = 'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  const count = await page.evaluate(({ dialogSelector, focusableSelector }) => {
+    const dialog = document.querySelector(dialogSelector);
+    if (!(dialog instanceof HTMLElement)) return 0;
+    const items = [...dialog.querySelectorAll(focusableSelector)].filter(element => element instanceof HTMLElement && element.getClientRects().length > 0);
+    items.at(-1)?.focus();
+    return items.length;
+  }, { dialogSelector, focusableSelector });
+  assert.ok(count > 1, `${label} should have multiple focusable controls`);
+  await page.keyboard.press('Tab');
+  assert.equal(await page.evaluate(({ dialogSelector, focusableSelector }) => {
+    const dialog = document.querySelector(dialogSelector);
+    const items = dialog ? [...dialog.querySelectorAll(focusableSelector)].filter(element => element instanceof HTMLElement && element.getClientRects().length > 0) : [];
+    return items.length > 0 && document.activeElement === items[0];
+  }, { dialogSelector, focusableSelector }), true, `${label} should wrap Tab from last to first`);
+  await page.keyboard.press('Shift+Tab');
+  assert.equal(await page.evaluate(({ dialogSelector, focusableSelector }) => {
+    const dialog = document.querySelector(dialogSelector);
+    const items = dialog ? [...dialog.querySelectorAll(focusableSelector)].filter(element => element instanceof HTMLElement && element.getClientRects().length > 0) : [];
+    return items.length > 0 && document.activeElement === items.at(-1);
+  }, { dialogSelector, focusableSelector }), true, `${label} should wrap Shift+Tab from first to last`);
+}
+"""
+          test = replace_once(test, helper_anchor, helper, 'focus test helper')
+          test = replace_once(test,
+              """  await launcher.click();
+  assert.ok(await page.getByRole('dialog', { name: '高级桌游助手' }).isVisible());
+""",
+              """  await launcher.click();
+  const tableDialog = page.getByRole('dialog', { name: '高级桌游助手' });
+  assert.ok(await tableDialog.isVisible());
+  assert.equal(await tableDialog.evaluate(dialog => dialog.contains(document.activeElement)), true, 'focus enters Table OS when opened');
+  await assertFocusTrapped(page, '.tableos-sheet[role="dialog"]', 'Table OS dialog');
+""",
+              'initial dialog focus test')
+          test = replace_once(test,
+              """  await page.locator('[data-os-role-reveal]').first().click();
+  assert.equal(await page.getByText('侦察员', { exact: true }).count(), 0, 'role stays hidden before player confirms identity');
+""",
+              """  const firstRoleReveal = page.locator('[data-os-role-reveal]').first();
+  await firstRoleReveal.click();
+  const secretDialog = page.locator('.tableos-secret[role="dialog"]');
+  assert.equal(await secretDialog.evaluate(dialog => dialog.contains(document.activeElement)), true, 'focus enters private role reveal');
+  await assertFocusTrapped(page, '.tableos-secret[role="dialog"]', 'private role reveal');
+  assert.equal(await page.getByText('侦察员', { exact: true }).count(), 0, 'role stays hidden before player confirms identity');
+""",
+              'nested dialog focus test')
+          test = replace_once(test,
+              """  assert.equal(await page.getByText(/主持人机密/).count(), 0, 'moderator note never appears after reveal');
+  await page.getByRole('button', { name: '看完了' }).click();
+""",
+              """  assert.equal(await page.getByText(/主持人机密/).count(), 0, 'moderator note never appears after reveal');
+  await page.keyboard.press('Escape');
+  assert.equal(await firstRoleReveal.evaluate(element => element === document.activeElement), true, 'closing private reveal returns focus to its trigger');
+""",
+              'nested dialog focus return test')
+          test = replace_once(test,
+              """  await page.getByRole('button', { name: '关闭' }).click();
+  await page.getByRole('button', { name: '界面语言' }).click();
+""",
+              """  await page.keyboard.press('Escape');
+  assert.equal(await launcher.evaluate(element => element === document.activeElement), true, 'closing Table OS returns focus to the launcher');
+  await page.getByRole('button', { name: '界面语言' }).click();
+""",
+              'launcher focus return test')
+          summary_anchor = "'unary formula operators',"
+          test = replace_once(test, summary_anchor, "'unary formula operators', 'modal focus trap', 'nested reveal focus return', 'launcher focus return',", 'summary')
+          test_path.write_text(test)
+          PY
+      - name: Commit generated source changes
+        run: |
+          rm .github/workflows/tableos-focus-migrate.yml .github/workflows/tableos-focus-migrate-v2.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/tabletop.js tests/e2e/run-table-os-e2e.js .github/workflows/tableos-focus-migrate.yml .github/workflows/tableos-focus-migrate-v2.yml
+          git commit -m 'fix: contain and restore Table OS focus'
+          git push origin HEAD:fix/table-os-focus-management-20260912
