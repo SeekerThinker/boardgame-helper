@@ -38,8 +38,16 @@ jobs:
           test -f dist/sw.js
           test -f dist/privacy.html
           test -f dist/src/app.js
+          test -f dist/src/tabletop.js
+          test -f dist/src/tabletop-core.js
+          test -f dist/src/tabletop.css
+          test -f dist/src/tabletop-event-boundary.js
           grep -q 'manifest.json' dist/index.html
+          grep -q 'src/tabletop.js' dist/index.html
+          grep -q 'src/tabletop-event-boundary.js' dist/index.html
           grep -q 'serviceWorker' dist/src/app.js
+          grep -q 'TABLE_OS_STORAGE_KEY' dist/src/tabletop-core.js
+          grep -q 'installTableOsEventBoundary' dist/src/tabletop-event-boundary.js
           touch dist/.nojekyll
       - name: Upload downloadable web preview
         uses: actions/upload-artifact@v7
@@ -115,10 +123,19 @@ jobs:
           fetch 'sw.js' "$RUNNER_TEMP/sw.js"
           fetch 'privacy.html' "$RUNNER_TEMP/privacy.html"
           fetch 'src/app.js' "$RUNNER_TEMP/app.js"
+          fetch 'src/tabletop.js' "$RUNNER_TEMP/tabletop.js"
+          fetch 'src/tabletop-core.js' "$RUNNER_TEMP/tabletop-core.js"
+          fetch 'src/tabletop.css' "$RUNNER_TEMP/tabletop.css"
+          fetch 'src/tabletop-event-boundary.js' "$RUNNER_TEMP/tabletop-event-boundary.js"
 
           grep -q 'manifest.json' "$RUNNER_TEMP/index.html"
           grep -q 'src/app.js' "$RUNNER_TEMP/index.html"
+          grep -q 'src/tabletop.js' "$RUNNER_TEMP/index.html"
+          grep -q 'src/tabletop-event-boundary.js' "$RUNNER_TEMP/index.html"
           grep -q 'serviceWorker' "$RUNNER_TEMP/app.js"
+          grep -q 'TABLE_OS_STORAGE_KEY' "$RUNNER_TEMP/tabletop-core.js"
+          grep -q 'installTableOsEventBoundary' "$RUNNER_TEMP/tabletop-event-boundary.js"
+          grep -q 'tableos-' "$RUNNER_TEMP/tabletop.css"
           grep -q '"name": "桌游助手"' "$RUNNER_TEMP/manifest.json"
           grep -q '"start_url": "./"' "$RUNNER_TEMP/manifest.json"
           grep -q '"scope": "./"' "$RUNNER_TEMP/manifest.json"

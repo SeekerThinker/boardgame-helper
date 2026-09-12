@@ -8,15 +8,18 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="color-scheme" content="dark">
-  <meta name="description" content="桌游助手：离线计时、计分、随机工具与结算，支持历史更正和本地到时提醒。">
+  <meta name="description" content="桌游助手：离线计时、计分、随机工具、状态追踪、阶段流程、团队身份与战役记录。">
   <link rel="manifest" href="./manifest.json">
   <link rel="apple-touch-icon" href="./icon-192.png">
   <link rel="icon" href="./icon-192.png">
   <link rel="stylesheet" href="./src/style.css">
+  <link rel="stylesheet" href="./src/tabletop.css">
   <title>桌游助手</title>
 </head>
 <body>
   <div id="app"></div>
   <script type="module" src="./src/app.js"></script>
+  <script type="module" src="./src/tabletop-event-boundary.js"></script>
+  <script type="module" src="./src/tabletop.js"></script>
 </body>
 </html>

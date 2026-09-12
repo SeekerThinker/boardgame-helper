@@ -5,7 +5,8 @@ const APP_SCOPE = self.registration.scope;
 const appUrl = relative => new URL(relative, APP_SCOPE).href;
 const APP_SHELL = [
   '', 'index.html', 'privacy.html', 'manifest.json', 'icon-192.png', 'icon-512.png',
-  'src/app.js', 'src/core.js', 'src/i18n.js', 'src/native.js', 'src/audio.js', 'src/archive.js', 'src/style.css'
+  'src/app.js', 'src/core.js', 'src/i18n.js', 'src/native.js', 'src/audio.js', 'src/archive.js', 'src/style.css',
+  'src/tabletop-event-boundary.js', 'src/tabletop.js', 'src/tabletop-core.js', 'src/tabletop.css'
 ].map(appUrl);
 
 self.addEventListener('install', event => {
