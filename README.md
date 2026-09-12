@@ -2,6 +2,8 @@
 
 桌游助手是面向线下桌游聚会的离线 **Table OS / 桌面操作系统**：基础层负责计时、计分、随机、归档与结算，高级 Table OS 工作台负责跨类型桌游常见的状态追踪、阶段流程、团队/身份、公式计分和战役记忆。界面支持中文与 English，可运行于 Web/PWA、Android 和 iOS；核心使用场景不依赖账号或网络。
 
+产品原则是：**简单桌游保持简单，复杂桌游只在需要时展开高级能力。** Table OS 默认进入精简的「牌局模式」，模板、公式、结构编辑、导入导出等高级配置统一收进「编辑配置」，避免桌游助手本身变成桌上新的管理负担。
+
 ## 功能
 
 - 流程：当前行动者计时、结束行动切人、保存本轮、进入下一轮；行动顺序卡片上可直接 ±1 快捷记分
@@ -9,26 +11,31 @@
 - 常亮：计时进行时可保持屏幕常亮（可在设置或开局页关闭），避免牌局中途熄屏
 - 计分：高分胜/低分胜、目标分、自定义计分栏位、回合分、历史更正
 - 基础模板：胜利点、奖励/惩罚、低分胜、合作战役、胜负局
-- Table OS：Universal Tracker、可编辑 Phase Engine、团队、私密身份、公式计分、战役检查点与本地 JSON 导入/导出
-- Table OS 模板：通用、引擎/终局计分、经济交易、合作危机、非对称冲突、隐藏身份、卡牌战斗、Campaign/Legacy、聚会分队；模板只是可编辑工作流起点，不替代官方规则
+- Table OS：Universal Tracker、Phase Engine、团队、两段式私密身份、公式计分、战役检查点与本地 JSON 导入/导出
+- Table OS 牌局/编辑分层：现场默认只显示状态、阶段、身份、分数和战役检查点；高级结构配置集中到编辑模式
+- Tracker 生命周期：公共/玩家/团队追踪器可以选择「本局」或「战役」持久，适配生命、威胁、资源、金币、经验、声望等状态
+- Table OS 模板：通用、引擎/终局计分、经济交易、合作危机、非对称冲突、隐藏身份、卡牌战斗、Campaign/Legacy、聚会分队；中英文模板内容分别生成对应语言的阶段、追踪器、计分栏和团队默认名
+- Session Bridge：阶段页可快速返回主计时器，工具箱最近一次均衡分队可一键采用为 Table OS Teams
 - 结算：按当前胜负规则排序，可复制本局摘要；结束后自动归档到“历史对局”，随时查看、复制或删除；「再来一局」保留玩家名单与各项设置，直接开下一局
 - 工具：掷骰/硬币（结果大屏展示）、随机首家、行动顺序洗牌、2–4 队均衡分队
 - 提醒：计时使用绝对截止时间，退到后台仍准确；授权后到时发送本地系统通知
-- 隐私：本地存储、无账号、无广告、无分析、无云同步
+- 隐私：本地存储、无账号、无广告、无分析、无云同步；玩家身份 reveal 不渲染主持备注
 - 发布：PWA 离线缓存 + Capacitor Android/iOS 原生壳
 
 ## Table OS 架构
 
-Table OS 使用独立本地状态 `board-game-assistant-table-os-v1`，通过稳定玩家引用与主对局名单同步，而不修改已经成熟的基础计时/计分状态模型。这样可以让高级工作台独立迁移、测试、导入/导出和回退，同时避免一次大升级把现有牌局流程耦合成单一巨型 schema。
+Table OS 使用独立本地状态 `board-game-assistant-table-os-v1`，通过稳定玩家引用与主对局名单同步，而不修改已经成熟的基础计时/计分状态模型。存储 key 为兼容已经上线的数据保持不变，内部 schema 已升级并通过 normalization 为旧数据补默认字段。这样可以让高级工作台独立迁移、测试、导入/导出和回退，同时避免一次大升级把现有牌局流程耦合成单一巨型 schema。
 
 当前高级层包含：
 
 - 最多 32 名参与者，可同步主应用玩家，也可加入主持/扩展参与者
-- 公共、每位玩家、每个团队三类通用追踪器，并支持步长与上下限
-- 可编辑阶段列表、当前阶段和循环计数
-- 最多 8 个团队，以及身份、阵营、主持备注和“传递设备后私密查看”
-- 最多 16 个高级计分栏；公式只接受数字、变量、算术运算符与括号，不使用 `eval` / `Function`
-- Campaign / Legacy 战役名称、章节/场景、局数、跨局备注和最多 40 个检查点/解锁项
+- 公共、每位玩家、每个团队三类通用追踪器，并支持步长、上下限和 `session` / `campaign` 生命周期
+- 可编辑阶段列表、当前阶段和循环计数；牌局模式保留直接推进与返回主计时器入口
+- 最多 8 个团队；可采用基础工具箱最近一次随机分队结果
+- 身份、阵营与主持备注；玩家私密查看采用「先交设备 → 玩家主动揭示 → 看完重新遮蔽」两段式流程，主持备注不会进入玩家 reveal DOM
+- 最多 16 个高级计分栏；公式只接受数字、变量、算术运算符与括号，不使用 `eval` / `Function`；牌局模式隐藏公式结构，只保留玩家输入和结果
+- Campaign / Legacy 战役名称、章节/场景、局数、跨局备注和最多 40 个检查点/解锁项；新场景只重置本局 Tracker，战役 Tracker 继续保留
+- 默认「牌局模式」与一键「编辑配置」；刷新、重新导入或重新进入持久状态时回到 Play surface，避免把编辑器当成日常主界面
 
 详细设计见 `TABLE_OS.md`，自动化发布门槛见 `docs/TABLE_OS_TEST_MATRIX.md`。
 
@@ -37,8 +44,8 @@ Table OS 使用独立本地状态 `board-game-assistant-table-os-v1`，通过稳
 - `index.html`：Web 入口
 - `src/app.js`：应用主逻辑
 - `src/core.js`：可测试的计时、计分、随机与状态迁移核心
-- `src/tabletop-core.js`：Table OS 纯状态模型、模板、公式解析与序列化
-- `src/tabletop.js`：Table OS 浏览器工作台与本地持久化
+- `src/tabletop-core.js`：Table OS 纯状态模型、机制模板、生命周期、公式解析与序列化
+- `src/tabletop.js`：Table OS 牌局/编辑工作台、Session Bridge 与本地持久化
 - `src/tabletop-event-boundary.js`：隔离背景 dismiss 与表单/动作事件委托，防止普通控件点击误关闭工作台
 - `src/tabletop.css`：Table OS 响应式界面
 - `src/i18n.js`：中英文案与格式化
@@ -49,8 +56,8 @@ Table OS 使用独立本地状态 `board-game-assistant-table-os-v1`，通过稳
 - `scripts/build-static.js`：生成 `dist/`
 - `scripts/check-native-versions.js`：检查/同步 Web、Android、iOS 用户版本号
 - `scripts/check-release-metadata.js`：检查发布清单、原生 build metadata、Android 权限与 iOS 隐私声明
-- `scripts/generate-store-assets.js`：生成 Google Play / App Store 双语截图与 feature graphic
-- `scripts/check-store-assets.js`：校验商店素材文件集合、像素尺寸与重复截图
+- `scripts/generate-store-assets.js`：生成 Google Play / App Store 双语截图与 feature graphic；截图覆盖基础流程、计分、Table OS 牌局模式、工具和结算
+- `scripts/check-store-assets.js`：校验商店素材精确文件集合、像素尺寸与重复截图
 - `scripts/prepare-release-candidate.js`：把 Web、Android AAB、商店文案/素材、隐私与发布清单组装为统一 RC，并生成 SHA-256 清单；已签名 AAB 还会记录签名证书 SHA-256 指纹
 - `scripts/check-release-candidate.js`：校验 RC 文件集合、版本、截图数量、AAB 签名/证书指纹与全部 SHA-256
 - `scripts/serve-static.js`：本地预览服务（支持 `BASE_PATH` 子路径模拟）
@@ -63,7 +70,7 @@ Table OS 使用独立本地状态 `board-game-assistant-table-os-v1`，通过稳
 - `TABLE_OS.md`：高级桌游工作台设计、兼容性与数据模型说明
 - `docs/TABLE_OS_TEST_MATRIX.md`：Table OS 与基础应用共同的发布门禁矩阵
 - `tests/e2e/run-e2e.js`：基础应用真实 Chromium 端到端测试
-- `tests/e2e/run-table-os-e2e.js`：手机尺寸 Table OS 完整交互端到端测试
+- `tests/e2e/run-table-os-e2e.js`：Table OS 真实 Chromium 端到端测试，覆盖 320px/390px 手机与 tablet 响应式、隐私 reveal、生命周期和 bridge
 - `tests/e2e/run-subpath-e2e.js`：PWA 子路径部署、Service Worker 与离线回归测试
 - `.github/workflows/ci.yml`：CI 流水线（安全审计、Web 测试、商店素材、Android APK/AAB、Android 临时签名 smoke test、iOS Simulator 编译、统一 RC artifact）
 - `.github/workflows/pages.yml`：GitHub Pages 构建、部署及线上静态资源 smoke test
@@ -95,7 +102,7 @@ npm run build
 npm run check
 ```
 
-它会先构建，检查 `package.json` / Android / iOS 的用户可见版本是否一致，再校验发布清单与原生 build metadata、Android 发布权限和 iOS 隐私声明，最后运行 Node 单元测试、基础应用 Chromium E2E、Table OS 手机 E2E，以及挂载到 `/boardgame-helper/` 的子路径 PWA E2E。首次运行若缺少浏览器：
+它会先构建，检查 `package.json` / Android / iOS 的用户可见版本是否一致，再校验发布清单与原生 build metadata、Android 发布权限和 iOS 隐私声明，最后运行 Node 单元测试、基础应用 Chromium E2E、Table OS Chromium E2E，以及挂载到 `/boardgame-helper/` 的子路径 PWA E2E。Table OS 门禁包含 Play/Edit 分层、两段式私密 reveal、主持备注隔离、Tracker 生命周期、工具箱分队 bridge、Campaign 持久化，以及 320px/390px 手机和 tablet 无横向溢出。首次运行若缺少浏览器：
 
 ```bash
 npx playwright install chromium
@@ -237,6 +244,6 @@ npm run assets:store
 npm run check:store-assets
 ```
 
-当前生成集合包含 40 张双语设备截图（Google Play phone/tablet、App Store iPhone/iPad）和 1 张 Google Play feature graphic。Pull Request 的 `store-assets` job 会重新生成并校验这些图片，再上传 `boardgame-helper-store-assets` Actions artifact（保留 7 天），方便发布前人工抽查。
+当前生成集合包含 40 张双语设备截图（Google Play phone/tablet、App Store iPhone/iPad）和 1 张 Google Play feature graphic。每个设备/语言维持精简的 5 图集合：**流程、计分、Table OS 牌局模式、工具、结算**。Pull Request 的 `store-assets` job 会重新生成并校验这些图片，再上传 `boardgame-helper-store-assets` Actions artifact（保留 7 天），方便发布前人工抽查。
 
 代码仓库能自动完成的字段、素材、构建、签名管线 smoke test 与完整性门禁已经尽量自动化；以下信息必须来自真实外部账号，仓库不会生成假占位值：Google Play Developer Contact、App Store App Support、稳定 HTTPS 隐私政策 URL、Google Play Console Data Safety/App content/内容分级，以及 App Store Connect 应用记录、年龄分级和审核信息。
