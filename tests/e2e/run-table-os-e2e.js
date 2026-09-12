@@ -69,7 +69,7 @@ async function run() {
   // Teams and private-role reveal are usable on a phone-sized viewport.
   await page.getByRole('button', { name: '团队与身份', exact: true }).click();
   assert.equal(await page.locator('.tableos-team').count(), 1);
-  await page.locator('[data-os-team-member]').first().check();
+  await page.locator('[data-os-team-member]').first().click();
   const firstRoleName = page.locator('[data-os-role-name]').first();
   const firstFaction = page.locator('[data-os-role-faction]').first();
   await firstRoleName.fill('侦察员');
@@ -108,7 +108,7 @@ async function run() {
   const flagName = page.locator('[data-os-flag-name]').first();
   await flagName.fill('开启北门');
   await flagName.blur();
-  await page.locator('[data-os-flag-toggle]').first().check();
+  await page.locator('[data-os-flag-toggle]').first().click();
 
   await page.getByRole('button', { name: '关闭' }).click();
   await page.reload({ waitUntil: 'networkidle' });
