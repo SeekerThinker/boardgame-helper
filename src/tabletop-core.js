@@ -217,6 +217,63 @@ export const ASSISTANT_TEMPLATES = [
   }
 ];
 
+const EN_TEMPLATE_CONTENT = {
+  universal: {
+    phases: ['Setup', 'Action', 'Resolve'],
+    trackers: ['Shared resource'],
+    scoreFields: ['Points']
+  },
+  'engine-score': {
+    phases: ['Round start', 'Action', 'Upkeep', 'Round end'],
+    trackers: ['Round'],
+    scoreFields: ['Base', 'Bonus', 'Objective', 'Penalty', 'Net']
+  },
+  'trade-network': {
+    phases: ['Income', 'Action', 'Trade', 'Upkeep'],
+    trackers: ['Shared supply', 'Coins', 'Resources'],
+    scoreFields: ['Victory points']
+  },
+  'coop-crisis': {
+    phases: ['Player phase', 'Fast actions', 'Crisis phase', 'Slow actions', 'Cleanup'],
+    trackers: ['Threat', 'Shared health', 'Player health'],
+    scoreFields: ['Objectives', 'Damage']
+  },
+  'asymmetric-conflict': {
+    phases: ['Start', 'Action', 'Conflict', 'Upkeep', 'End'],
+    trackers: ['Influence', 'Resources', 'Reputation'],
+    scoreFields: ['Victory points']
+  },
+  'hidden-role': {
+    phases: ['Setup', 'Open discussion', 'Private phase', 'Vote / Resolution', 'Resolve'],
+    trackers: ['Alive count'],
+    scoreFields: ['Wins']
+  },
+  'card-battle': {
+    phases: ['Setup', 'Main phase', 'Combat', 'End'],
+    trackers: ['Health', 'Resources', 'Status'],
+    scoreFields: ['Wins']
+  },
+  campaign: {
+    phases: ['Scenario setup', 'Action', 'Encounter', 'Scenario resolution', 'Campaign record'],
+    trackers: ['Team resources', 'Health', 'Experience'],
+    scoreFields: ['Scenario score']
+  },
+  'party-teams': {
+    phases: ['Prompt', 'Answer', 'Judge', 'Switch sides'],
+    trackers: ['Team score'],
+    scoreFields: ['Player score']
+  }
+};
+
+function templateLocale(requested) {
+  if (requested === 'en' || requested === 'zh') return requested;
+  try {
+    return globalThis.document?.documentElement?.lang?.toLowerCase().startsWith('en') ? 'en' : 'zh';
+  } catch (_) {
+    return 'zh';
+  }
+}
+
 export function templateById(id) {
   return ASSISTANT_TEMPLATES.find(template => template.id === id) || ASSISTANT_TEMPLATES[0];
 }
@@ -433,7 +490,8 @@ export function normalizeTableOsState(input) {
       activeSection: ['overview', 'trackers', 'phases', 'teams', 'score', 'campaign'].includes(input.ui?.activeSection)
         ? input.ui.activeSection
         : 'overview',
-      mode: input.ui?.mode === 'edit' ? 'edit' : 'play'
+      // Edit mode is intentionally ephemeral. Reload/import always returns to the safer live-play surface.
+      mode: 'play'
     },
     updatedAt: typeof input.updatedAt === 'string' ? input.updatedAt : base.updatedAt
   };
@@ -807,17 +865,31 @@ function resetTemplateModules(state) {
   state.campaign = { enabled: false, name: '', chapter: '', sessionNumber: 1, notes: '', flags: [] };
 }
 
-export function applyAssistantTemplate(state, templateId, { preserveParticipants = true } = {}) {
+export function applyAssistantTemplate(state, templateId, { preserveParticipants = true, locale = null } = {}) {
   const template = templateById(templateId);
+  const resolvedLocale = templateLocale(locale);
+  const translated = resolvedLocale === 'en' ? EN_TEMPLATE_CONTENT[template.id] : null;
   const participants = preserveParticipants ? state.participants.slice() : [];
   resetTemplateModules(state);
   state.participants = participants;
   state.appliedTemplateId = template.id;
-  state.phases.items = template.phases.slice(0, MAX_PHASES).map(name => ({ id: uid('phase_'), name, note: '' }));
-  state.trackers = template.trackers.slice(0, MAX_TRACKERS).map((tracker, index) => trackerFromTemplate(tracker, index));
+  state.phases.items = template.phases.slice(0, MAX_PHASES).map((name, index) => ({
+    id: uid('phase_'),
+    name: translated?.phases?.[index] || name,
+    note: ''
+  }));
+  state.trackers = template.trackers.slice(0, MAX_TRACKERS).map((tracker, index) => trackerFromTemplate({
+    ...tracker,
+    name: translated?.trackers?.[index] || tracker.name
+  }, index));
   const usedKeys = new Set();
-  state.scoreSheet.fields = template.scoreFields.slice(0, MAX_SCORE_FIELDS).map((field, index) => scoreFieldFromTemplate(field, index, usedKeys));
-  for (let index = 0; index < Math.min(MAX_TEAMS, template.teams || 0); index += 1) addTeam(state, `Team ${index + 1}`);
+  state.scoreSheet.fields = template.scoreFields.slice(0, MAX_SCORE_FIELDS).map((field, index) => scoreFieldFromTemplate({
+    ...field,
+    name: translated?.scoreFields?.[index] || field.name
+  }, index, usedKeys));
+  for (let index = 0; index < Math.min(MAX_TEAMS, template.teams || 0); index += 1) {
+    addTeam(state, resolvedLocale === 'en' ? `Team ${index + 1}` : `${index + 1}队`);
+  }
   state.campaign.enabled = Boolean(template.campaign);
   state.ui.activeSection = 'overview';
   state.ui.mode = 'play';
