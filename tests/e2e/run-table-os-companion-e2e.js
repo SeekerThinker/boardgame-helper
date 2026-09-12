@@ -213,7 +213,7 @@ async function runSessionLifecycleFlow() {
   await healthValue.blur();
 
   await page.getByRole('button', { name: 'Phases', exact: true }).click();
-  await page.getByRole('button', { name: /Next/ }).click();
+  await page.locator('[data-os-action="next-phase"]').click();
   await page.getByRole('button', { name: 'Score sheet', exact: true }).click();
   const scoreValue = page.locator('[data-os-score-value]').first();
   await scoreValue.fill('9');
