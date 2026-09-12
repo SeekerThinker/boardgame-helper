@@ -6,6 +6,8 @@ export const MAX_PHASES = 20;
 export const MAX_TEAMS = 8;
 export const MAX_SCORE_FIELDS = 16;
 export const MAX_CAMPAIGN_FLAGS = 40;
+export const MAX_USER_TEMPLATES = 12;
+export const USER_TEMPLATE_VERSION = 1;
 
 const DEFAULT_COLORS = [
   '#f97316', '#14b8a6', '#3b82f6', '#eab308', '#ef4444', '#8b5cf6',
@@ -278,6 +280,12 @@ export function templateById(id) {
   return ASSISTANT_TEMPLATES.find(template => template.id === id) || ASSISTANT_TEMPLATES[0];
 }
 
+function normalizeAppliedTemplateId(value) {
+  const raw = String(value ?? '').trim().slice(0, 72);
+  if (/^user:[a-zA-Z0-9_-]{1,64}$/.test(raw)) return raw;
+  return templateById(raw).id;
+}
+
 function trackerFromTemplate(input, index = 0) {
   const tracker = input && typeof input === 'object' ? input : {};
   const scope = ['global', 'participant', 'team'].includes(tracker.scope) ? tracker.scope : 'global';
@@ -478,7 +486,7 @@ export function normalizeTableOsState(input) {
   const participantIds = new Set(participants.map(participant => participant.id));
   return {
     schemaVersion: TABLE_OS_SCHEMA_VERSION,
-    appliedTemplateId: templateById(input.appliedTemplateId).id,
+    appliedTemplateId: normalizeAppliedTemplateId(input.appliedTemplateId),
     participants,
     trackers: normalizeTrackers(input.trackers),
     phases: normalizePhases(input.phases),
@@ -859,12 +867,100 @@ export function removeCampaignFlag(state, flagId) {
   return true;
 }
 
+export function normalizeUserTemplate(input) {
+  const source = input && typeof input === 'object' ? input : {};
+  const trackerSource = Array.isArray(source.trackers) ? source.trackers : [];
+  const phaseSource = Array.isArray(source.phases) ? source.phases : Array.isArray(source.phases?.items) ? source.phases.items : [];
+  const teamSource = Array.isArray(source.teams) ? source.teams : [];
+  const scoreSource = Array.isArray(source.scoreFields) ? source.scoreFields : Array.isArray(source.scoreSheet?.fields) ? source.scoreSheet.fields : [];
+  const usedKeys = new Set();
+  return {
+    version: USER_TEMPLATE_VERSION,
+    id: identifier(source.id, 'ut_'),
+    name: text(source.name || 'My template', 48),
+    trackers: trackerSource.slice(0, MAX_TRACKERS).map((tracker, index) => {
+      const normalized = trackerFromTemplate({
+        ...tracker,
+        value: tracker?.initial ?? tracker?.value,
+        values: {}
+      }, index);
+      return {
+        name: normalized.name,
+        scope: normalized.scope,
+        persistence: normalized.persistence,
+        min: normalized.min,
+        max: normalized.max,
+        step: normalized.step,
+        initial: normalized.initial
+      };
+    }),
+    phases: phaseSource.slice(0, MAX_PHASES).map((phase, index) => ({
+      name: text(phase?.name || `Phase ${index + 1}`, 32),
+      note: text(phase?.note, 120)
+    })),
+    teams: teamSource.slice(0, MAX_TEAMS).map((team, index) => ({
+      name: text(team?.name || `Team ${index + 1}`, 28),
+      color: color(team?.color, index)
+    })),
+    scoreFields: scoreSource.slice(0, MAX_SCORE_FIELDS).map((field, index) => {
+      const normalized = scoreFieldFromTemplate(field, index, usedKeys);
+      return {
+        key: normalized.key,
+        name: normalized.name,
+        kind: normalized.kind,
+        formula: normalized.formula,
+        step: normalized.step,
+        effect: normalized.effect,
+        includeInTotal: normalized.includeInTotal
+      };
+    }),
+    campaignEnabled: Boolean(source.campaignEnabled)
+  };
+}
+
+export function createUserTemplateFromState(state, name = 'My template') {
+  return normalizeUserTemplate({
+    id: uid('ut_'),
+    name,
+    trackers: state.trackers,
+    phases: state.phases.items,
+    teams: state.teams,
+    scoreFields: state.scoreSheet.fields,
+    campaignEnabled: state.campaign.enabled
+  });
+}
+
 function resetTemplateModules(state) {
   state.trackers = [];
   state.phases = { items: [], activeIndex: 0, cycle: 1 };
   state.teams = [];
   state.roles = [];
   state.scoreSheet = { fields: [], values: {} };
+}
+
+export function applyUserTemplate(state, input, { preserveParticipants = true } = {}) {
+  const template = normalizeUserTemplate(input);
+  const participants = preserveParticipants ? state.participants.slice() : [];
+  resetTemplateModules(state);
+  state.participants = participants;
+  state.appliedTemplateId = `user:${template.id}`;
+  state.phases.items = template.phases.map(phase => ({ id: uid('phase_'), name: phase.name, note: phase.note }));
+  state.trackers = template.trackers.map((tracker, index) => trackerFromTemplate({
+    ...tracker,
+    value: tracker.initial,
+    values: {}
+  }, index));
+  const usedKeys = new Set();
+  state.scoreSheet.fields = template.scoreFields.map((field, index) => scoreFieldFromTemplate(field, index, usedKeys));
+  template.teams.forEach((savedTeam, index) => {
+    const team = addTeam(state, savedTeam.name || `Team ${index + 1}`);
+    if (team) team.color = color(savedTeam.color, index);
+  });
+  if (template.campaignEnabled) state.campaign.enabled = true;
+  state.ui.activeSection = 'overview';
+  state.ui.mode = 'play';
+  touch(state);
+  return state;
 }
 
 export function applyAssistantTemplate(state, templateId, { preserveParticipants = true, locale = null } = {}) {

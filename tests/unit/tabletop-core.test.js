@@ -8,7 +8,7 @@ import {
   addTeam, toggleTeamMember, setRole, roleForParticipant,
   addScoreSheetField, setScoreSheetValue, evaluateFormula, scoreCardForParticipant,
   addCampaignFlag, toggleCampaignFlag, applyAssistantTemplate, resetTableOsSession,
-  serializeTableOsState, parseTableOsState
+  createUserTemplateFromState, applyUserTemplate, normalizeUserTemplate, serializeTableOsState, parseTableOsState
 } from '../../src/tabletop-core.js';
 
 function participantNames(state) {
@@ -64,6 +64,60 @@ test('template application localizes generated phase, tracker, score and team na
   assert.equal(state.trackers[0].name, 'Threat');
   assert.equal(state.scoreSheet.fields[0].name, 'Objectives');
   assert.equal(state.teams[0].name, 'Team 1');
+});
+
+test('My Templates copy reusable structure without live, private, roster or campaign content', () => {
+  const state = createDefaultTableOsState();
+  const player = addParticipant(state, 'Alice');
+  applyAssistantTemplate(state, 'coop-crisis');
+  const team = state.teams[0];
+  toggleTeamMember(state, team.id, player.id);
+  setRole(state, player.id, { role: 'Secret Seer', faction: 'Town', note: 'Moderator secret', secret: true });
+  setTrackerValue(state, state.trackers[0].id, 'global', 8);
+  setScoreSheetValue(state, player.id, state.scoreSheet.fields[0].id, 11);
+  state.campaign.enabled = true;
+  state.campaign.name = 'Private campaign';
+  state.campaign.chapter = 'Secret chapter';
+  state.campaign.notes = 'Long private note';
+  const flag = addCampaignFlag(state, 'Unlocked hidden gate');
+  toggleCampaignFlag(state, flag.id);
+
+  const saved = createUserTemplateFromState(state, 'Friday setup');
+  const raw = JSON.stringify(saved);
+  assert.equal(saved.name, 'Friday setup');
+  assert.equal(saved.trackers[0].initial, state.trackers[0].initial, 'tracker initial value is configuration');
+  assert.equal('values' in saved.trackers[0], false, 'live tracker values are excluded');
+  assert.equal('memberIds' in saved.teams[0], false, 'team assignments are excluded');
+  assert.equal('participants' in saved, false, 'roster is excluded');
+  assert.equal('roles' in saved, false, 'private role assignments are excluded');
+  assert.equal('campaign' in saved, false, 'campaign content is excluded');
+  assert.equal(raw.includes('Secret Seer'), false);
+  assert.equal(raw.includes('Moderator secret'), false);
+  assert.equal(raw.includes('Private campaign'), false);
+  assert.equal(raw.includes('Unlocked hidden gate'), false);
+
+  const target = createDefaultTableOsState();
+  const targetPlayer = addParticipant(target, 'Bob');
+  target.campaign.enabled = true;
+  target.campaign.name = 'Keep this campaign';
+  target.campaign.notes = 'Keep this note';
+  const targetFlag = addCampaignFlag(target, 'Keep checkpoint');
+  toggleCampaignFlag(target, targetFlag.id);
+  applyUserTemplate(target, normalizeUserTemplate(saved));
+
+  assert.deepEqual(participantNames(target), ['Bob'], 'current roster is preserved');
+  assert.equal(target.appliedTemplateId, `user:${saved.id}`);
+  assert.equal(target.trackers[0].values && Object.keys(target.trackers[0].values).length, 0, 'tracker values restart from initial');
+  assert.equal(target.phases.activeIndex, 0);
+  assert.equal(target.phases.cycle, 1);
+  assert.deepEqual(target.teams[0].memberIds, [], 'saved team structure has no old members');
+  assert.equal(target.roles.length, 0);
+  assert.deepEqual(target.scoreSheet.values, {});
+  assert.equal(target.campaign.name, 'Keep this campaign');
+  assert.equal(target.campaign.notes, 'Keep this note');
+  assert.equal(target.campaign.flags[0].checked, true, 'campaign memory is untouched by template apply');
+  assert.equal(target.participants[0].id, targetPlayer.id);
+  assert.equal(normalizeTableOsState(target).appliedTemplateId, `user:${saved.id}`, 'custom template identity survives state normalization');
 });
 
 test('universal trackers support scopes, clamps and explicit persistence', () => {
