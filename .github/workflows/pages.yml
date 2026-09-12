@@ -93,6 +93,10 @@ jobs:
           fetch() {
             local path="$1"
             local output="$2"
+            local label="/${path}"
+            if [ -z "$path" ]; then
+              label='/'
+            fi
             curl \
               --fail \
               --silent \
@@ -103,6 +107,7 @@ jobs:
               --retry-delay 5 \
               "${BASE_URL}${path}" \
               --output "$output"
+            printf 'OK %s\n' "$label"
           }
 
           fetch '' "$RUNNER_TEMP/index.html"
@@ -114,6 +119,8 @@ jobs:
           grep -q 'manifest.json' "$RUNNER_TEMP/index.html"
           grep -q 'src/app.js' "$RUNNER_TEMP/index.html"
           grep -q 'serviceWorker' "$RUNNER_TEMP/app.js"
-          grep -q 'Board Game Assistant' "$RUNNER_TEMP/manifest.json"
+          grep -q '"name": "桌游助手"' "$RUNNER_TEMP/manifest.json"
+          grep -q '"start_url": "./"' "$RUNNER_TEMP/manifest.json"
+          grep -q '"scope": "./"' "$RUNNER_TEMP/manifest.json"
 
           printf 'Live preview verified: %s\n' "$BASE_URL" | tee -a "$GITHUB_STEP_SUMMARY"
