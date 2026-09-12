@@ -865,7 +865,6 @@ function resetTemplateModules(state) {
   state.teams = [];
   state.roles = [];
   state.scoreSheet = { fields: [], values: {} };
-  state.campaign = { enabled: false, name: '', chapter: '', sessionNumber: 1, notes: '', flags: [] };
 }
 
 export function applyAssistantTemplate(state, templateId, { preserveParticipants = true, locale = null } = {}) {
@@ -893,7 +892,8 @@ export function applyAssistantTemplate(state, templateId, { preserveParticipants
   for (let index = 0; index < Math.min(MAX_TEAMS, template.teams || 0); index += 1) {
     addTeam(state, resolvedLocale === 'en' ? `Team ${index + 1}` : `${index + 1}队`);
   }
-  state.campaign.enabled = Boolean(template.campaign);
+  // Templates may enable campaign support, but must never silently erase or disable persistent campaign memory.
+  if (template.campaign) state.campaign.enabled = true;
   state.ui.activeSection = 'overview';
   state.ui.mode = 'play';
   touch(state);
