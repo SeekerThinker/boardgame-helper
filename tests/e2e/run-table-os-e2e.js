@@ -66,9 +66,13 @@ async function runPrimaryFlow() {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'zh-CN', acceptDownloads: true });
   const page = await context.newPage();
   const errors = [];
+  const promptResponses = [];
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   page.on('pageerror', error => errors.push(error.message));
-  page.on('dialog', dialog => dialog.accept());
+  page.on('dialog', async dialog => {
+    if (dialog.type() === 'prompt') await dialog.accept(promptResponses.shift() || dialog.defaultValue() || '');
+    else await dialog.accept();
+  });
 
   await page.goto(url, { waitUntil: 'networkidle' });
   await page.evaluate(() => localStorage.clear());
@@ -228,6 +232,60 @@ async function runPrimaryFlow() {
   await page.getByRole('button', { name: '战役', exact: true }).click();
   assert.ok(await page.getByText('周五战役', { exact: true }).isVisible(), 'campaign name survives template application');
   assert.ok(await page.getByText('开启北门', { exact: true }).isVisible(), 'campaign checkpoints survive template application');
+
+  // My Templates persist locally but only copy reusable structure, never live/private/campaign data.
+  await editMode(page);
+  await page.getByRole('button', { name: '团队与身份', exact: true }).click();
+  await page.getByRole('button', { name: '添加团队' }).click();
+  await page.locator('[data-os-team-member]').first().check();
+  const privateTemplateRole = page.locator('[data-os-role-name]').first();
+  await privateTemplateRole.fill('不应保存的私密角色'); await privateTemplateRole.blur();
+  await page.getByRole('button', { name: '追踪器', exact: true }).click();
+  const liveRound = page.locator('[data-os-tracker-value]').first();
+  await liveRound.fill('7'); await liveRound.blur();
+  promptResponses.push('引擎夜');
+  await page.getByRole('button', { name: '保存当前配置' }).click();
+  const savedTemplates = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-table-os-user-templates-v1') || '[]'));
+  assert.equal(savedTemplates.length, 1);
+  assert.equal(savedTemplates[0].name, '引擎夜');
+  assert.equal(savedTemplates[0].trackers[0].initial, 1, 'template keeps tracker initial configuration');
+  assert.equal('values' in savedTemplates[0].trackers[0], false, 'template excludes live tracker values');
+  assert.equal('memberIds' in savedTemplates[0].teams[0], false, 'template excludes team membership');
+  assert.equal('participants' in savedTemplates[0], false, 'template excludes player roster');
+  assert.equal('roles' in savedTemplates[0], false, 'template excludes role secrets');
+  assert.equal('campaign' in savedTemplates[0], false, 'template excludes campaign content');
+  const savedRaw = JSON.stringify(savedTemplates[0]);
+  assert.equal(savedRaw.includes('不应保存的私密角色'), false);
+  assert.equal(savedRaw.includes('周五战役'), false);
+  assert.equal(savedRaw.includes('开启北门'), false);
+
+  promptResponses.push('周五引擎');
+  await page.getByRole('button', { name: '重命名', exact: true }).click();
+  assert.equal(await page.locator('[data-os-user-template] option').first().textContent(), '周五引擎');
+  await page.getByRole('button', { name: '关闭' }).click();
+  await page.reload({ waitUntil: 'networkidle' });
+  await openTableOs(page);
+  await editMode(page);
+  assert.equal(await page.locator('[data-os-user-template] option').first().textContent(), '周五引擎', 'My Templates persist across reload');
+
+  await page.locator('[data-os-template]').selectOption('universal');
+  await page.getByRole('button', { name: '应用模板', exact: true }).click();
+  await editMode(page);
+  await page.getByRole('button', { name: '应用我的模板', exact: true }).click();
+  await page.getByRole('button', { name: '追踪器', exact: true }).click();
+  assert.equal(await page.locator('[data-os-tracker-value]').first().inputValue(), '1', 'applying My Template restores initial tracker state, not saved live value');
+  const appliedTemplateState = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1')));
+  assert.ok(String(appliedTemplateState.appliedTemplateId).startsWith('user:'), 'custom template identity persists with the workspace');
+  assert.equal(appliedTemplateState.roles.length, 0, 'private roles are not replayed');
+  assert.deepEqual(appliedTemplateState.teams[0].memberIds, [], 'team membership is not replayed');
+  assert.deepEqual(appliedTemplateState.scoreSheet.values, {}, 'score values are not replayed');
+  assert.equal(appliedTemplateState.campaign.name, '周五战役', 'campaign memory survives My Template application');
+  assert.equal(appliedTemplateState.campaign.flags[0].name, '开启北门');
+  assert.equal(appliedTemplateState.campaign.flags[0].checked, true);
+
+  await editMode(page);
+  await page.getByRole('button', { name: '删除模板', exact: true }).click();
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-table-os-user-templates-v1') || '[]').length), 0, 'deleted template is removed only from local template shelf');
 
   // English UI follows the main language dynamically.
   await page.keyboard.press('Escape');

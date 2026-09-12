@@ -1,17 +1,19 @@
 import { STORAGE_KEY } from './core.js';
 import {
   TABLE_OS_STORAGE_KEY, ASSISTANT_TEMPLATES, MAX_TABLE_OS_PARTICIPANTS, MAX_TRACKERS, MAX_PHASES,
-  MAX_TEAMS, MAX_SCORE_FIELDS, MAX_CAMPAIGN_FLAGS, createDefaultTableOsState, normalizeTableOsState,
+  MAX_TEAMS, MAX_SCORE_FIELDS, MAX_CAMPAIGN_FLAGS, MAX_USER_TEMPLATES, uid, createDefaultTableOsState, normalizeTableOsState,
   syncParticipantsFromGame, addParticipant, renameParticipant, removeParticipant,
   addTracker, removeTracker, trackerEntityIds, trackerValue, adjustTracker, setTrackerValue, setTrackerPersistence,
   addPhase, removePhase, setActivePhase, advancePhase,
   addTeam, removeTeam, toggleTeamMember, setRole, clearRole, roleForParticipant,
   addScoreSheetField, removeScoreSheetField, setScoreSheetValue, scoreCardForParticipant,
   addCampaignFlag, toggleCampaignFlag, removeCampaignFlag,
+  normalizeUserTemplate, createUserTemplateFromState, applyUserTemplate,
   applyAssistantTemplate, resetTableOsSession, serializeTableOsState, parseTableOsState, touch
 } from './tabletop-core.js';
 
 const LEGACY_GAME_STATE_KEY = 'board-game-assistant-state-v1';
+const USER_TEMPLATES_STORAGE_KEY = 'board-game-assistant-table-os-user-templates-v1';
 const SECTION_IDS = ['overview', 'trackers', 'phases', 'teams', 'score', 'campaign'];
 const QUICK_TEMPLATES = ['universal', 'coop-crisis', 'hidden-role', 'card-battle', 'campaign', 'party-teams'];
 
@@ -37,7 +39,11 @@ const I18N = {
     confirmTemplate: '应用模板会重置追踪器、阶段、团队、身份和高级计分表，但保留参与者。继续吗？', confirmReset: '开始新场景会重置“本局”追踪器、身份和高级计分值，保留“战役”追踪器，并推进战役局数。继续吗？',
     limit: '已达到上限。', customParticipant: '新参与者', customTracker: '新追踪器', customPhase: '新阶段', customTeam: '新团队', customField: '新栏位', customFormula: '计算栏', customFlag: '新检查点',
     revealFor: '仅给这位玩家看', passDevice: '请先把设备交给对应玩家。身份现在仍然隐藏。', revealNow: '这是我，查看身份', noRole: '尚未设置身份',
-    templateHint: '模板只是可编辑的工作流起点，不替代官方规则。', moderatorNoteHidden: '主持备注不会显示给玩家。'
+    templateHint: '模板只是可编辑的工作流起点，不替代官方规则。', moderatorNoteHidden: '主持备注不会显示给玩家。',
+    myTemplates: '我的模板', saveMyTemplate: '保存当前配置', applyMyTemplate: '应用我的模板', renameMyTemplate: '重命名', deleteMyTemplate: '删除模板',
+    myTemplateHint: '只保存在本机，只保存追踪器、阶段、团队结构和计分公式；不保存玩家、身份、当前数值或战役内容。', myTemplateEmpty: '还没有我的模板', myTemplateDefault: '我的模板', customSetup: '自定义配置',
+    myTemplateNamePrompt: '模板名称', myTemplateSaved: '已保存为我的模板。', myTemplateRenamed: '模板已重命名。', myTemplateDeleted: '模板已删除。', myTemplateLimit: '我的模板最多保存 12 个。',
+    confirmMyTemplate: '应用我的模板会重置追踪器、阶段、团队、身份和高级计分表，但保留参与者与战役记忆。继续吗？', confirmDeleteMyTemplate: '删除这个本机模板吗？'
   },
   en: {
     launcher: 'Table OS', title: 'Advanced Table Assistant', subtitle: 'Play mode keeps only live table controls visible; configuration stays in Edit mode.',
@@ -60,13 +66,19 @@ const I18N = {
     confirmTemplate: 'Applying a template resets trackers, phases, teams, roles and the advanced score sheet while preserving participants. Continue?', confirmReset: 'Starting a new scenario resets session trackers, roles and advanced scores, preserves campaign trackers, and advances the campaign session. Continue?',
     limit: 'Limit reached.', customParticipant: 'New participant', customTracker: 'New tracker', customPhase: 'New phase', customTeam: 'New team', customField: 'New field', customFormula: 'Calculated field', customFlag: 'New checkpoint',
     revealFor: 'For this player only', passDevice: 'Pass the device to the matching player first. The role is still hidden.', revealNow: 'This is me — reveal role', noRole: 'No role assigned',
-    templateHint: 'Templates are editable workflow starters, not replacements for official rules.', moderatorNoteHidden: 'Moderator notes are never shown in player reveal.'
+    templateHint: 'Templates are editable workflow starters, not replacements for official rules.', moderatorNoteHidden: 'Moderator notes are never shown in player reveal.',
+    myTemplates: 'My templates', saveMyTemplate: 'Save current setup', applyMyTemplate: 'Apply my template', renameMyTemplate: 'Rename', deleteMyTemplate: 'Delete template',
+    myTemplateHint: 'Stored only on this device. Saves tracker, phase, team structure and score formulas — never players, roles, live values or campaign content.', myTemplateEmpty: 'No saved templates yet', myTemplateDefault: 'My template', customSetup: 'Custom setup',
+    myTemplateNamePrompt: 'Template name', myTemplateSaved: 'Saved to My templates.', myTemplateRenamed: 'Template renamed.', myTemplateDeleted: 'Template deleted.', myTemplateLimit: 'My templates can store up to 12 setups.',
+    confirmMyTemplate: 'Applying My template resets trackers, phases, teams, roles and the advanced score sheet while preserving participants and campaign memory. Continue?', confirmDeleteMyTemplate: 'Delete this local template?'
   }
 };
 
 let state = loadState();
 let isOpen = false;
-let selectedTemplateId = state.appliedTemplateId || 'universal';
+let selectedTemplateId = ASSISTANT_TEMPLATES.some(template => template.id === state.appliedTemplateId) ? state.appliedTemplateId : 'universal';
+let userTemplates = loadUserTemplates();
+let selectedUserTemplateId = userTemplates[0]?.id || '';
 let revealedParticipantId = null;
 let revealArmed = false;
 let toast = '';
@@ -101,6 +113,27 @@ function loadState() {
 
 function persist() {
   try { localStorage.setItem(TABLE_OS_STORAGE_KEY, JSON.stringify(state)); } catch (_) {}
+}
+
+function loadUserTemplates() {
+  try {
+    const raw = localStorage.getItem(USER_TEMPLATES_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+    const used = new Set();
+    return parsed.slice(0, MAX_USER_TEMPLATES).map(item => {
+      let template = normalizeUserTemplate(item);
+      if (used.has(template.id)) template = { ...template, id: uid('ut_') };
+      used.add(template.id);
+      return template;
+    });
+  } catch (_) {
+    return [];
+  }
+}
+
+function persistUserTemplates() {
+  try { localStorage.setItem(USER_TEMPLATES_STORAGE_KEY, JSON.stringify(userTemplates.slice(0, MAX_USER_TEMPLATES))); } catch (_) {}
 }
 
 function readGameState() {
@@ -348,16 +381,27 @@ function renderShell() {
 }
 
 function renderEditorToolbar() {
+  const selectedUserTemplate = userTemplates.find(template => template.id === selectedUserTemplateId) || null;
+  const hasUserTemplates = userTemplates.length > 0;
+  const selectedBuiltIn = ASSISTANT_TEMPLATES.find(template => template.id === selectedTemplateId) || ASSISTANT_TEMPLATES[0];
   return `<div class="tableos-toolbar">
     <label class="tableos-template"><span>${esc(tr('template'))}</span>
       <select data-os-template>${ASSISTANT_TEMPLATES.map(template => `<option value="${template.id}" ${selectedTemplateId === template.id ? 'selected' : ''}>${esc(templateName(template))}</option>`).join('')}</select>
     </label>
     <button type="button" class="tableos-btn primary" data-os-action="apply-template">${esc(tr('apply'))}</button>
     <button type="button" class="tableos-btn" data-os-action="sync">${esc(tr('sync'))}</button>
+    <label class="tableos-template"><span>${esc(tr('myTemplates'))} · ${userTemplates.length}/${MAX_USER_TEMPLATES}</span>
+      <select data-os-user-template ${hasUserTemplates ? '' : 'disabled'}>${hasUserTemplates ? userTemplates.map(template => `<option value="${attr(template.id)}" ${selectedUserTemplate?.id === template.id ? 'selected' : ''}>${esc(template.name)}</option>`).join('') : `<option value="">${esc(tr('myTemplateEmpty'))}</option>`}</select>
+    </label>
+    <button type="button" class="tableos-btn primary" data-os-action="save-my-template">${esc(tr('saveMyTemplate'))}</button>
+    <button type="button" class="tableos-btn" data-os-action="apply-my-template" ${hasUserTemplates ? '' : 'disabled'}>${esc(tr('applyMyTemplate'))}</button>
+    <button type="button" class="tableos-btn" data-os-action="rename-my-template" ${hasUserTemplates ? '' : 'disabled'}>${esc(tr('renameMyTemplate'))}</button>
+    <button type="button" class="tableos-btn danger" data-os-action="delete-my-template" ${hasUserTemplates ? '' : 'disabled'}>${esc(tr('deleteMyTemplate'))}</button>
     <button type="button" class="tableos-btn" data-os-action="export">${esc(tr('export'))}</button>
     <button type="button" class="tableos-btn" data-os-action="import">${esc(tr('import'))}</button>
     <input id="tableos-import-file" type="file" accept="application/json,.json" hidden>
-    <p class="tableos-template-note">${esc(templateDescription(ASSISTANT_TEMPLATES.find(template => template.id === selectedTemplateId) || ASSISTANT_TEMPLATES[0]))} · ${esc(tr('templateHint'))}</p>
+    <p class="tableos-template-note">${esc(templateDescription(selectedBuiltIn))} · ${esc(tr('templateHint'))}</p>
+    <p class="tableos-template-note">${esc(tr('myTemplateHint'))}</p>
   </div>`;
 }
 
@@ -382,12 +426,16 @@ function renderQuickStart() {
 
 function renderOverview() {
   if (!hasConfiguredWorkspace() && state.ui.mode === 'play') return renderQuickStart();
+  const userTemplateId = state.appliedTemplateId.startsWith('user:') ? state.appliedTemplateId.slice(5) : '';
+  const userTemplate = userTemplates.find(item => item.id === userTemplateId) || null;
   const template = ASSISTANT_TEMPLATES.find(item => item.id === state.appliedTemplateId) || ASSISTANT_TEMPLATES[0];
+  const activeTemplateName = userTemplate?.name || (userTemplateId ? tr('customSetup') : templateName(template));
+  const activeTemplateDescription = userTemplate ? tr('myTemplateHint') : (userTemplateId ? tr('templateHint') : templateDescription(template));
   const activePhase = state.phases.items[state.phases.activeIndex];
   return `
     <div class="tableos-grid two">
       <section class="tableos-card hero-card">
-        <span>${esc(tr('activeTemplate'))}</span><h3>${esc(templateName(template))}</h3><p>${esc(templateDescription(template))}</p>
+        <span>${esc(tr('activeTemplate'))}</span><h3>${esc(activeTemplateName)}</h3><p>${esc(activeTemplateDescription)}</p>
         <div class="tableos-statline"><strong>${state.trackers.length}</strong><span>${esc(tr('trackers'))}</span><strong>${state.phases.items.length}</strong><span>${esc(tr('phases'))}</span><strong>${state.teams.length}</strong><span>${esc(tr('teams'))}</span></div>
       </section>
       <section class="tableos-card"><span>${esc(tr('coverage'))}</span><h3>${esc(tr('coverageText'))}</h3>${activePhase ? `<p>${esc(tr('phases'))}: <strong>${esc(activePhase.name)}</strong> · ${esc(tr('cycle'))} ${state.phases.cycle}</p>` : ''}</section>
@@ -504,6 +552,46 @@ function applyTemplate(templateId, confirmReset = true) {
   return true;
 }
 
+function saveCurrentUserTemplate() {
+  flushActiveDraft();
+  if (userTemplates.length >= MAX_USER_TEMPLATES) { flash(tr('myTemplateLimit')); return; }
+  const name = prompt(tr('myTemplateNamePrompt'), tr('myTemplateDefault'));
+  if (!name?.trim()) return;
+  const template = createUserTemplateFromState(state, name.trim());
+  userTemplates.unshift(template);
+  selectedUserTemplateId = template.id;
+  persistUserTemplates();
+  flash(tr('myTemplateSaved'));
+}
+
+function applySelectedUserTemplate() {
+  const template = userTemplates.find(item => item.id === selectedUserTemplateId);
+  if (!template) return;
+  if (hasConfiguredWorkspace() && !confirm(tr('confirmMyTemplate'))) return;
+  applyUserTemplate(state, template, { preserveParticipants: true });
+  persist();
+  render();
+}
+
+function renameSelectedUserTemplate() {
+  const index = userTemplates.findIndex(item => item.id === selectedUserTemplateId);
+  if (index < 0) return;
+  const name = prompt(tr('myTemplateNamePrompt'), userTemplates[index].name);
+  if (!name?.trim()) return;
+  userTemplates[index] = normalizeUserTemplate({ ...userTemplates[index], name: name.trim() });
+  persistUserTemplates();
+  flash(tr('myTemplateRenamed'));
+}
+
+function deleteSelectedUserTemplate() {
+  const index = userTemplates.findIndex(item => item.id === selectedUserTemplateId);
+  if (index < 0 || !confirm(tr('confirmDeleteMyTemplate'))) return;
+  userTemplates.splice(index, 1);
+  selectedUserTemplateId = userTemplates[Math.min(index, userTemplates.length - 1)]?.id || '';
+  persistUserTemplates();
+  flash(tr('myTemplateDeleted'));
+}
+
 function adoptRandomTeams() {
   const game = readGameState();
   const sourceTeams = Array.isArray(game?.tools?.teams) ? game.tools.teams : [];
@@ -536,7 +624,7 @@ async function importFile(file) {
   if (!file) return;
   try {
     state = parseTableOsState(await file.text());
-    selectedTemplateId = state.appliedTemplateId;
+    selectedTemplateId = ASSISTANT_TEMPLATES.some(template => template.id === state.appliedTemplateId) ? state.appliedTemplateId : 'universal';
     persist();
     flash(tr('imported'));
   } catch (_) {
@@ -556,6 +644,10 @@ function bindEvents() {
     if (d.osSection) { state.ui.activeSection = d.osSection; saveAndRender(); return; }
     if (d.osQuickTemplate) { applyTemplate(d.osQuickTemplate, false); return; }
     if (d.osAction === 'sync') { syncParticipantsFromGame(state, readGamePlayers()); persist(); flash(tr('synced')); return; }
+    if (d.osAction === 'save-my-template') { saveCurrentUserTemplate(); return; }
+    if (d.osAction === 'apply-my-template') { applySelectedUserTemplate(); return; }
+    if (d.osAction === 'rename-my-template') { renameSelectedUserTemplate(); return; }
+    if (d.osAction === 'delete-my-template') { deleteSelectedUserTemplate(); return; }
     if (d.osAction === 'apply-template') { applyTemplate(selectedTemplateId, true); return; }
     if (d.osAction === 'reset') { if (confirm(tr('confirmReset'))) { resetTableOsSession(state); persist(); render(); } return; }
     if (d.osAction === 'export') { exportState(); return; }
@@ -589,6 +681,7 @@ function bindEvents() {
     if (!(element instanceof HTMLInputElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement)) return;
     const d = element.dataset;
     if (d.osTemplate !== undefined) { selectedTemplateId = element.value; render(); return; }
+    if (d.osUserTemplate !== undefined) { selectedUserTemplateId = element.value; render(); return; }
     if (element.id === 'tableos-import-file') { importFile(element.files?.[0]); element.value = ''; return; }
     if (d.osParticipantName) { renameParticipant(state, d.osParticipantName, element.value); persist(); return; }
     if (d.osTrackerName) { mutateTracker(d.osTrackerName, { name: element.value.trim().slice(0, 32) || tr('customTracker') }); saveAndRender(); return; }
