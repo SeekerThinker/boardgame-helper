@@ -52,6 +52,8 @@ async function run() {
   assert.ok(archived[0].tableOs, 'finished archive contains a Table OS summary');
   assert.equal(archived[0].tableOs.scores[0].total, 13);
   assert.equal(JSON.stringify(archived[0].tableOs).includes('roles'), false);
+
+  await page.locator('.archive-item').first().locator('summary').click();
   assert.ok(await page.getByText('Table OS 摘要', { exact: true }).isVisible());
   assert.ok(await page.getByText('高级计分', { exact: true }).isVisible());
 
