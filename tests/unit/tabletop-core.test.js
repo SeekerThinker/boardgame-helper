@@ -55,6 +55,17 @@ test('template application creates mechanism workspace without deleting particip
   assert.equal(state.teams.length, 1);
 });
 
+test('template application localizes generated phase, tracker, score and team names', () => {
+  const state = createDefaultTableOsState();
+  addParticipant(state, 'A');
+  applyAssistantTemplate(state, 'coop-crisis', { locale: 'en' });
+
+  assert.equal(state.phases.items[0].name, 'Player phase');
+  assert.equal(state.trackers[0].name, 'Threat');
+  assert.equal(state.scoreSheet.fields[0].name, 'Objectives');
+  assert.equal(state.teams[0].name, 'Team 1');
+});
+
 test('universal trackers support scopes, clamps and explicit persistence', () => {
   const state = createDefaultTableOsState();
   const p1 = addParticipant(state, 'A');
@@ -166,13 +177,13 @@ test('campaign reset preserves campaign trackers and clears session trackers', (
   assert.equal(scoreCardForParticipant(state, player.id).total, 0);
 });
 
-test('normalization keeps tracker persistence, drops dangling references and round-trips exported state', () => {
+test('normalization keeps tracker persistence, drops dangling references, and reopens in play mode', () => {
   const raw = {
     participants: [{ id: 'p one', name: 'A' }],
     trackers: [{ id: 'xp', name: 'XP', scope: 'participant', persistence: 'campaign', value: 0, values: { 'p one': 5 } }],
     teams: [{ id: 'team one', name: 'T', memberIds: ['p one', 'missing'] }],
     roles: [{ participantId: 'missing', role: 'Bad' }, { participantId: 'p one', role: 'Good' }],
-    scoreSheet: { fields: [{ id: 's1', key: 'points', name: 'Points' }], values: { missing: { s1: 5 }, 'p one': { s1: 3 } }, },
+    scoreSheet: { fields: [{ id: 's1', key: 'points', name: 'Points' }], values: { missing: { s1: 5 }, 'p one': { s1: 3 } } },
     ui: { mode: 'edit' }
   };
   const state = normalizeTableOsState(raw);
@@ -181,12 +192,12 @@ test('normalization keeps tracker persistence, drops dangling references and rou
   assert.equal(state.roles.length, 1);
   assert.equal(state.roles[0].participantId, participantId);
   assert.equal(state.trackers[0].persistence, 'campaign');
-  assert.equal(state.ui.mode, 'edit');
+  assert.equal(state.ui.mode, 'play', 'edit mode is intentionally not persisted across reload/import');
   assert.equal(scoreCardForParticipant(state, participantId).total, 3);
 
   const restored = parseTableOsState(serializeTableOsState(state));
   assert.deepEqual(restored.participants, state.participants);
   assert.deepEqual(restored.teams, state.teams);
   assert.equal(restored.trackers[0].persistence, 'campaign');
-  assert.equal(restored.ui.mode, 'edit');
+  assert.equal(restored.ui.mode, 'play');
 });
