@@ -68,13 +68,16 @@ function fixture(locale) {
   return state;
 }
 
-function tableOsFixture(gameState) {
+function tableOsFixture(gameState, locale) {
   const state = createDefaultTableOsState();
   syncParticipantsFromGame(state, gameState.players);
-  applyAssistantTemplate(state, 'coop-crisis');
-  const threat = state.trackers.find(item => item.name === '威胁');
-  const sharedHealth = state.trackers.find(item => item.name === '公共生命');
-  const personalHealth = state.trackers.find(item => item.name === '个人生命');
+  applyAssistantTemplate(state, 'coop-crisis', { locale });
+  const threatName = locale === 'en' ? 'Threat' : '威胁';
+  const sharedHealthName = locale === 'en' ? 'Shared health' : '公共生命';
+  const personalHealthName = locale === 'en' ? 'Player health' : '个人生命';
+  const threat = state.trackers.find(item => item.name === threatName);
+  const sharedHealth = state.trackers.find(item => item.name === sharedHealthName);
+  const personalHealth = state.trackers.find(item => item.name === personalHealthName);
   if (threat) setTrackerValue(state, threat.id, 'global', 4);
   if (sharedHealth) setTrackerValue(state, sharedHealth.id, 'global', 7);
   if (personalHealth) {
@@ -109,7 +112,7 @@ async function captureView(page, screen, outputPath, locale, gameState) {
   if (screen === '03-table-os') {
     await page.evaluate(({ key, value }) => localStorage.setItem(key, value), {
       key: TABLE_OS_STORAGE_KEY,
-      value: JSON.stringify(tableOsFixture(gameState))
+      value: JSON.stringify(tableOsFixture(gameState, locale))
     });
     await page.reload({ waitUntil: 'networkidle' });
     await page.getByRole('button', { name: locale === 'zh' ? '高级桌游助手' : 'Advanced Table Assistant' }).click();
@@ -183,7 +186,7 @@ async function main() {
           gameKey: STORAGE_KEY,
           gameValue: JSON.stringify(gameState),
           tableKey: TABLE_OS_STORAGE_KEY,
-          tableValue: JSON.stringify(tableOsFixture(gameState))
+          tableValue: JSON.stringify(tableOsFixture(gameState, locale))
         });
         const page = await context.newPage();
         await page.goto(baseUrl);
