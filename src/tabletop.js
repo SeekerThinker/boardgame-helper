@@ -251,7 +251,17 @@ function closeRoleReveal() {
   focusRoleTrigger(participantId);
 }
 
+function flushActiveDraft() {
+  const active = document.activeElement;
+  const editable = active instanceof HTMLTextAreaElement
+    || (active instanceof HTMLInputElement && ['text', 'number'].includes(active.type));
+  if (!editable || !active.closest('#tableos-root')) return false;
+  active.dispatchEvent(new Event('change', { bubbles: true }));
+  return true;
+}
+
 function closeTableOs() {
+  flushActiveDraft();
   isOpen = false;
   revealedParticipantId = null;
   revealArmed = false;
@@ -610,6 +620,11 @@ function bindEvents() {
     if (event.key === 'Tab' && isOpen) { trapModalFocus(event); return; }
     if (event.key === 'Escape' && revealedParticipantId) { event.preventDefault(); closeRoleReveal(); return; }
     if (event.key === 'Escape' && isOpen) { event.preventDefault(); closeTableOs(); }
+  });
+
+  window.addEventListener('pagehide', flushActiveDraft);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushActiveDraft();
   });
 }
 

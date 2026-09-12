@@ -172,6 +172,19 @@ async function runPrimaryFlow() {
   await page.getByRole('button', { name: '计分表', exact: true }).click();
   assert.equal(await page.locator('.tableos-score-table > article').first().locator('output').last().textContent(), '5', 'unary formula syntax works through the live score sheet');
 
+  // A focused live value is flushed synchronously before page lifecycle interruption, even without blur/change.
+  const interruptedScore = page.locator('[data-os-score-value]').first();
+  const interruptedScoreKey = await interruptedScore.getAttribute('data-os-score-value');
+  assert.ok(interruptedScoreKey, 'live score input exposes a persistence key');
+  await interruptedScore.focus();
+  await interruptedScore.evaluate(element => { element.value = '21'; });
+  await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+  assert.equal(await page.evaluate(key => {
+    const [participantId, fieldId] = key.split('|');
+    const stored = JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1'));
+    return Number(stored?.scoreSheet?.values?.[participantId]?.[fieldId]);
+  }, interruptedScoreKey), 21, 'pagehide flushes the active live score draft before blur');
+
   // Campaign trackers have explicit lifetimes: health resets; experience persists across new scenarios.
   await applyTemplate(page, 'campaign');
   await page.getByRole('button', { name: '追踪器', exact: true }).click();
@@ -188,7 +201,15 @@ async function runPrimaryFlow() {
   // Campaign memory persists across reloads.
   await editMode(page);
   await page.getByRole('button', { name: '战役', exact: true }).click();
-  await page.locator('[data-os-campaign="name"]').fill('周五战役'); await page.locator('[data-os-campaign="name"]').blur();
+  const campaignNameDraft = page.locator('[data-os-campaign="name"]');
+  await campaignNameDraft.focus();
+  await campaignNameDraft.evaluate(element => { element.value = '周五战役'; });
+  await page.keyboard.press('Escape');
+  assert.equal(await launcher.evaluate(element => element === document.activeElement), true, 'Escape closes Table OS after flushing the focused draft');
+  await openTableOs(page);
+  await editMode(page);
+  await page.getByRole('button', { name: '战役', exact: true }).click();
+  assert.equal(await page.locator('[data-os-campaign="name"]').inputValue(), '周五战役', 'Escape-close preserves the focused campaign draft without blur');
   await page.getByRole('button', { name: '添加检查点' }).click();
   const flagName = page.locator('[data-os-flag-name]').first();
   await flagName.fill('开启北门'); await flagName.blur();
@@ -243,7 +264,7 @@ async function run() {
     checks: [
       'play/edit separation', 'purpose-first quick start', 'roster sync', 'universal trackers', 'phase engine',
       'toolbox-team bridge', 'two-stage private role reveal', 'moderator-note isolation', 'formula score sheet', 'unary formula operators', 'modal focus trap', 'nested reveal focus return', 'launcher focus return',
-      'campaign tracker persistence', 'campaign reload persistence', '320px mobile', 'tablet', 'dynamic bilingual UI'
+      'pagehide draft flush', 'escape-close draft flush', 'campaign tracker persistence', 'campaign reload persistence', '320px mobile', 'tablet', 'dynamic bilingual UI'
     ]
   }, null, 2));
 }
