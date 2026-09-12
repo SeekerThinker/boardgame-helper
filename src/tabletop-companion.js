@@ -1,17 +1,20 @@
 import { STORAGE_KEY } from './core.js';
+import { TABLE_OS_STORAGE_KEY } from './tabletop-core.js';
 
 const I18N = {
   zh: {
     mainGame: '主对局', round: '第 {value} 轮', running: '进行中', paused: '已暂停', openFlow: '主计时器',
     undo: '撤销上一步', undone: '已撤销上一步。', undoUnavailable: '这一步已经无法撤销。',
     trackerAction: '状态调整', phaseAction: '阶段切换', scoreAction: '计分修改', flagAction: '检查点修改',
-    increase: '增加', decrease: '减少', setValue: '设置', switchPhase: '切换到阶段'
+    increase: '增加', decrease: '减少', setValue: '设置', switchPhase: '切换到阶段',
+    rosterChanged: '主对局玩家已变更', syncRoster: '同步玩家', rosterSynced: '已同步主对局玩家。'
   },
   en: {
     mainGame: 'Main game', round: 'Round {value}', running: 'Running', paused: 'Paused', openFlow: 'Main timer',
     undo: 'Undo last action', undone: 'Last action undone.', undoUnavailable: 'That action can no longer be undone.',
     trackerAction: 'Tracker adjustment', phaseAction: 'Phase change', scoreAction: 'Score edit', flagAction: 'Checkpoint change',
-    increase: 'Increase', decrease: 'Decrease', setValue: 'Set', switchPhase: 'Switch to phase'
+    increase: 'Increase', decrease: 'Decrease', setValue: 'Set', switchPhase: 'Switch to phase',
+    rosterChanged: 'Main-game players changed', syncRoster: 'Sync players', rosterSynced: 'Main-game players synced.'
   }
 };
 
@@ -37,14 +40,22 @@ function esc(value) {
   return String(value ?? '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
 }
 
-function readGameState() {
+function readStoredState(key) {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(key);
     const parsed = raw ? JSON.parse(raw) : null;
     return parsed && typeof parsed === 'object' ? parsed : null;
   } catch (_) {
     return null;
   }
+}
+
+function readGameState() {
+  return readStoredState(STORAGE_KEY);
+}
+
+function readTableOsState() {
+  return readStoredState(TABLE_OS_STORAGE_KEY);
 }
 
 function displayPlayer(game, player) {
@@ -76,6 +87,23 @@ function formatClock(seconds) {
   return `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`;
 }
 
+function rosterNeedsSync(game) {
+  const table = readTableOsState();
+  const gamePlayers = Array.isArray(game?.players) ? game.players : [];
+  const participants = Array.isArray(table?.participants) ? table.participants : [];
+  const sourced = participants.filter(participant => participant?.sourcePlayerId);
+  if (sourced.length !== gamePlayers.length) return true;
+  return gamePlayers.some((player, index) => {
+    const participant = sourced[index];
+    if (!participant || String(participant.sourcePlayerId) !== String(player?.id ?? '')) return true;
+    const gameName = String(player?.name || '').trim();
+    if (gameName && String(participant.name || '').trim() !== gameName) return true;
+    const gameColor = String(player?.color || '');
+    if (/^#[0-9a-f]{6}$/i.test(gameColor) && String(participant.color || '').toLowerCase() !== gameColor.toLowerCase()) return true;
+    return false;
+  });
+}
+
 function mainGameContext() {
   const game = readGameState();
   if (!game || game.screen !== 'workspace') return null;
@@ -86,7 +114,8 @@ function mainGameContext() {
     round: Math.max(1, Number(game.timer?.round) || 1),
     player: displayPlayer(game, active),
     seconds: currentTimerSeconds(game),
-    running: Boolean(game.timer?.running)
+    running: Boolean(game.timer?.running),
+    rosterDrift: rosterNeedsSync(game)
   };
 }
 
@@ -144,60 +173,6 @@ function executeUndo() {
   }
 }
 
-function trackerUndoFromButton(button) {
-  const raw = button.dataset.osTrackerDelta;
-  if (!raw) return null;
-  const parts = raw.split('|');
-  if (parts.length !== 3) return null;
-  const delta = Number(parts[2]);
-  const counter = button.closest('.tableos-counter');
-  const input = counter?.querySelector('[data-os-tracker-value]');
-  if (!(input instanceof HTMLInputElement) || !Number.isFinite(delta)) return null;
-  const current = Number(input.value);
-  const min = input.min === '' ? -Infinity : Number(input.min);
-  const max = input.max === '' ? Infinity : Number(input.max);
-  const next = Math.min(max, Math.max(min, current + delta));
-  if (next === current) return null;
-  const opposite = `${parts[0]}|${parts[1]}|${-delta}`;
-  return () => {
-    const target = document.querySelector(dataSelector('data-os-tracker-delta', opposite));
-    if (!(target instanceof HTMLElement)) return false;
-    target.click();
-    return true;
-  };
-}
-
-function phaseUndoFromButton(button) {
-  if (button.dataset.osAction === 'next-phase') {
-    return () => { const target = document.querySelector('[data-os-action="prev-phase"]'); if (!(target instanceof HTMLElement)) return false; target.click(); return true; };
-  }
-  if (button.dataset.osAction === 'prev-phase') {
-    return () => { const target = document.querySelector('[data-os-action="next-phase"]'); if (!(target instanceof HTMLElement)) return false; target.click(); return true; };
-  }
-  if (button.dataset.osPhaseActive !== undefined) {
-    const previous = document.querySelector('.tableos-phase.active [data-os-phase-active]')?.dataset.osPhaseActive;
-    if (previous == null || previous === button.dataset.osPhaseActive) return null;
-    return () => {
-      const target = document.querySelector(dataSelector('data-os-phase-active', previous));
-      if (!(target instanceof HTMLElement)) return false;
-      target.click();
-      return true;
-    };
-  }
-  return null;
-}
-
-function flagUndoFromButton(button) {
-  const id = button.dataset.osFlagToggle;
-  if (!id) return null;
-  return () => {
-    const target = document.querySelector(dataSelector('data-os-flag-toggle', id));
-    if (!(target instanceof HTMLElement)) return false;
-    target.click();
-    return true;
-  };
-}
-
 function valueUndoFromInput(input, previous) {
   const attribute = input.dataset.osTrackerValue !== undefined ? 'data-os-tracker-value' : 'data-os-score-value';
   const value = input.dataset.osTrackerValue ?? input.dataset.osScoreValue;
@@ -214,6 +189,93 @@ function valueUndoFromInput(input, previous) {
     });
     return restored;
   };
+}
+
+function trackerUndoFromButton(button) {
+  const raw = button.dataset.osTrackerDelta;
+  if (!raw) return null;
+  const parts = raw.split('|');
+  if (parts.length !== 3) return null;
+  const delta = Number(parts[2]);
+  const counter = button.closest('.tableos-counter');
+  const input = counter?.querySelector('[data-os-tracker-value]');
+  if (!(input instanceof HTMLInputElement) || !Number.isFinite(delta)) return null;
+  const current = Number(input.value);
+  const min = input.min === '' ? -Infinity : Number(input.min);
+  const max = input.max === '' ? Infinity : Number(input.max);
+  const next = Math.min(max, Math.max(min, current + delta));
+  if (next === current) return null;
+  return valueUndoFromInput(input, input.value);
+}
+
+function phaseSnapshot() {
+  const phases = readTableOsState()?.phases;
+  if (!phases || !Array.isArray(phases.items) || !phases.items.length) return null;
+  return {
+    activeIndex: Math.max(0, Number(phases.activeIndex) || 0),
+    cycle: Math.max(1, Number(phases.cycle) || 1),
+    count: phases.items.length
+  };
+}
+
+function restorePhaseSnapshot(snapshot) {
+  let current = phaseSnapshot();
+  if (!snapshot || !current || current.count !== snapshot.count) return false;
+
+  if (current.cycle > snapshot.cycle) {
+    const previous = document.querySelector('[data-os-action="prev-phase"]');
+    if (!(previous instanceof HTMLElement)) return false;
+    previous.click();
+  } else if (current.cycle < snapshot.cycle) {
+    const next = document.querySelector('[data-os-action="next-phase"]');
+    if (!(next instanceof HTMLElement)) return false;
+    next.click();
+  }
+
+  current = phaseSnapshot();
+  if (!current) return false;
+  if (current.activeIndex !== snapshot.activeIndex) {
+    const target = document.querySelector(dataSelector('data-os-phase-active', snapshot.activeIndex));
+    if (!(target instanceof HTMLElement)) return false;
+    target.click();
+  }
+
+  current = phaseSnapshot();
+  return Boolean(current && current.activeIndex === snapshot.activeIndex && current.cycle === snapshot.cycle);
+}
+
+function phaseUndoFromButton(button) {
+  const before = phaseSnapshot();
+  if (!before) return null;
+  if (button.dataset.osPhaseActive !== undefined && Number(button.dataset.osPhaseActive) === before.activeIndex) return null;
+  return () => restorePhaseSnapshot(before);
+}
+
+function flagUndoFromButton(button) {
+  const id = button.dataset.osFlagToggle;
+  if (!id) return null;
+  return () => {
+    const target = document.querySelector(dataSelector('data-os-flag-toggle', id));
+    if (!(target instanceof HTMLElement)) return false;
+    target.click();
+    return true;
+  };
+}
+
+function syncRosterFromMain() {
+  const section = activeSection();
+  lastUndo = null;
+  const edit = document.querySelector('[data-os-mode="edit"]');
+  if (!(edit instanceof HTMLElement)) return false;
+  edit.click();
+  const sync = document.querySelector('[data-os-action="sync"]');
+  if (!(sync instanceof HTMLElement)) return false;
+  sync.click();
+  const play = document.querySelector('[data-os-mode="play"]');
+  if (play instanceof HTMLElement) play.click();
+  queueMicrotask(() => activateSection(section));
+  showNotice(tr('rosterSynced'));
+  return true;
 }
 
 function openMainFlow() {
@@ -256,9 +318,9 @@ function enhanceAccessibility(sheet) {
 function companionMarkup(context) {
   const contextMarkup = context ? `<div class="tableos-companion-main" data-tableos-main-context>
       <span>${esc(tr('mainGame'))}</span><strong>${esc(context.session)}</strong>
-      <small>${esc(tr('round', { value: context.round }))} · ${esc(context.player)} · <b data-tableos-main-time>${esc(formatClock(context.seconds))}</b> · ${esc(context.running ? tr('running') : tr('paused'))}</small>
+      <small>${esc(tr('round', { value: context.round }))} · ${esc(context.player)} · <b data-tableos-main-time>${esc(formatClock(context.seconds))}</b> · ${esc(context.running ? tr('running') : tr('paused'))}${context.rosterDrift ? ` · <em>${esc(tr('rosterChanged'))}</em>` : ''}</small>
     </div>` : '';
-  const actions = `${lastUndo ? `<button type="button" class="tableos-btn" data-tableos-companion-action="undo" title="${esc(lastUndo.label)}">↶ ${esc(tr('undo'))}</button>` : ''}${context ? `<button type="button" class="tableos-btn" data-tableos-companion-action="flow">${esc(tr('openFlow'))}</button>` : ''}`;
+  const actions = `${lastUndo ? `<button type="button" class="tableos-btn" data-tableos-companion-action="undo" title="${esc(lastUndo.label)}">↶ ${esc(tr('undo'))}</button>` : ''}${context?.rosterDrift ? `<button type="button" class="tableos-btn" data-tableos-companion-action="sync">${esc(tr('syncRoster'))}</button>` : ''}${context ? `<button type="button" class="tableos-btn" data-tableos-companion-action="flow">${esc(tr('openFlow'))}</button>` : ''}`;
   return `${contextMarkup}<div class="tableos-companion-actions">${actions}</div>${notice ? `<span class="tableos-companion-notice" role="status">${esc(notice)}</span>` : ''}`;
 }
 
@@ -328,6 +390,7 @@ document.addEventListener('click', event => {
     event.preventDefault();
     event.stopPropagation();
     if (companionAction.dataset.tableosCompanionAction === 'undo') executeUndo();
+    if (companionAction.dataset.tableosCompanionAction === 'sync') syncRosterFromMain();
     if (companionAction.dataset.tableosCompanionAction === 'flow') openMainFlow();
     return;
   }
