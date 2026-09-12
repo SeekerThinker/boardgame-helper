@@ -36,8 +36,35 @@ function clampInt(value, min, max, fallback = min) {
   return Math.min(max, Math.max(min, number));
 }
 
+function safeNumber(value, min = -1000000, max = 1000000, fallback = 0) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.round(Math.min(max, Math.max(min, parsed)) * 100) / 100;
+}
+
 function safeColor(value) {
   return /^#[0-9a-f]{6}$/i.test(value || '') ? value : '#64748b';
+}
+
+function normalizeTableOsSummary(input) {
+  if (!input || typeof input !== 'object') return null;
+  const campaign = input.campaign && typeof input.campaign === 'object' ? {
+    name: String(input.campaign.name ?? '').slice(0, 60),
+    chapter: String(input.campaign.chapter ?? '').slice(0, 60),
+    sessionNumber: clampInt(input.campaign.sessionNumber, 1, 9999, 1)
+  } : null;
+  const scores = (Array.isArray(input.scores) ? input.scores : []).slice(0, 32).map((score, index) => ({
+    name: String(score?.name ?? `Player ${index + 1}`).slice(0, 40),
+    color: safeColor(score?.color),
+    total: safeNumber(score?.total)
+  }));
+  return {
+    templateId: String(input.templateId ?? '').slice(0, 32),
+    phaseName: String(input.phaseName ?? '').slice(0, 40),
+    phaseCycle: clampInt(input.phaseCycle, 1, 9999, 1),
+    campaign,
+    scores
+  };
 }
 
 export function normalizeArchiveEntry(input) {
@@ -68,7 +95,8 @@ export function normalizeArchiveEntry(input) {
       effect: Number(field?.effect) === -1 ? -1 : 1
     })),
     timerMode: ['turn', 'chess', 'pool', 'round'].includes(source.timerMode) ? source.timerMode : null,
-    baseSeconds: clampInt(source.baseSeconds, 5, 86400, 90)
+    baseSeconds: clampInt(source.baseSeconds, 5, 86400, 90),
+    tableOs: normalizeTableOsSummary(source.tableOs)
   };
 }
 
