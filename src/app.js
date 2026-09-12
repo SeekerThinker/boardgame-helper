@@ -22,6 +22,7 @@ import {
 import {
   loadArchive, saveGameToArchive, deleteArchiveEntry, clearArchive
 } from './archive.js';
+import { buildTableOsArchiveSummary } from './tabletop-archive-bridge.js';
 
 let state = loadState();
 let settingsOpen = false;
@@ -464,6 +465,7 @@ function renderArchive() {
           <details class="archive-item">
             <summary><strong>${escapeHtml(game.name)}</strong><span>${formatDateTime(state.locale, game.finishedAt)} · ${tr('timer.roundLabel', { round: game.roundCount })}</span></summary>
             <ol class="archive-ranking">${game.players.map(player => `<li style="--player:${player.color}"><span>${escapeHtml(player.name || tr('common.removedPlayer'))}</span><strong>${player.score}</strong></li>`).join('')}</ol>
+            ${renderTableOsArchive(game.tableOs)}
             <div class="archive-actions">
               <button class="text-btn small" type="button" data-rematch-archive="${game.id}">${tr('archive.rematch')}</button>
               <button class="text-btn small" type="button" data-archive-copy="${game.id}">${tr('action.copy')}</button>
@@ -472,6 +474,34 @@ function renderArchive() {
           </details>`).join('') || `<p class="empty-state">${tr('archive.empty')}</p>`}
       </div>
     </section>`;
+}
+
+function renderTableOsArchive(summary) {
+  if (!summary) return '';
+  const details = [];
+  if (summary.phaseName) details.push(tr('archive.tableOsPhase', { phase: summary.phaseName, cycle: summary.phaseCycle }));
+  if (summary.campaign) {
+    const name = summary.campaign.name || tr('archive.tableOsCampaignFallback');
+    const chapter = summary.campaign.chapter ? ` · ${summary.campaign.chapter}` : '';
+    details.push(tr('archive.tableOsCampaign', { name, chapter, session: summary.campaign.sessionNumber }));
+  }
+  return `<div class="archive-tableos"><strong>${tr('archive.tableOs')}</strong>${details.length ? `<p class="inline-note">${details.map(escapeHtml).join(' · ')}</p>` : ''}${summary.scores.length ? `<p class="inline-note">${tr('archive.tableOsScores')}</p><ol class="archive-ranking">${summary.scores.map(score => `<li style="--player:${score.color}"><span>${escapeHtml(score.name)}</span><strong>${score.total}</strong></li>`).join('')}</ol>` : ''}</div>`;
+}
+
+function tableOsArchiveLines(summary) {
+  if (!summary) return [];
+  const lines = [tr('archive.tableOs')];
+  if (summary.phaseName) lines.push(tr('archive.tableOsPhase', { phase: summary.phaseName, cycle: summary.phaseCycle }));
+  if (summary.campaign) {
+    const name = summary.campaign.name || tr('archive.tableOsCampaignFallback');
+    const chapter = summary.campaign.chapter ? ` · ${summary.campaign.chapter}` : '';
+    lines.push(tr('archive.tableOsCampaign', { name, chapter, session: summary.campaign.sessionNumber }));
+  }
+  if (summary.scores.length) {
+    lines.push(tr('archive.tableOsScores'));
+    summary.scores.forEach(score => lines.push(`${score.name}: ${score.total}`));
+  }
+  return lines;
 }
 
 function renderSettings() {
@@ -930,6 +960,7 @@ function buildArchiveEntry(currentState) {
     roundCount: currentState.timer.round,
     startedAt: currentState.session.startedAt,
     finishedAt: currentState.session.finishedAt,
+    tableOs: buildTableOsArchiveSummary(currentState),
     players: ranked.map(({ player, rank, score }) => ({
       name: displayPlayer(player),
       color: player.color,
@@ -944,7 +975,8 @@ async function copyArchivedGame(id) {
   if (!game) return;
   const lines = [
     `${game.name} · ${formatDateTime(game.locale, game.finishedAt)}`,
-    ...game.players.map(player => `${player.rank}. ${player.name}: ${player.score}`)
+    ...game.players.map(player => `${player.rank}. ${player.name}: ${player.score}`),
+    ...tableOsArchiveLines(game.tableOs)
   ];
   const copied = await copyText(lines.join('\n'));
   showToast(copied ? 'action.copied' : 'toast.copyFailed');
