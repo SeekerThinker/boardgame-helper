@@ -52,6 +52,12 @@ async function runPrimaryFlow() {
   const secondTime = await page.locator('[data-tableos-main-time]').textContent();
   assert.notEqual(secondTime, firstTime, 'main timer keeps ticking while Table OS is open');
 
+  // Pause through the real bridge before simulating a persistent main-roster edit.
+  await page.locator('[data-tableos-companion-action="flow"]').click();
+  await page.locator('[data-action="timer-toggle"]').click();
+  await openTableOs(page);
+  assert.match(await mainContext.textContent(), /已暂停/);
+
   // Main-roster drift is detected without forcing a destructive automatic sync.
   await page.evaluate(() => {
     const key = 'board-game-assistant-state-v2';
