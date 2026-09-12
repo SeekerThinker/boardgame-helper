@@ -89,8 +89,10 @@ async function run() {
   await manualInputs.nth(0).blur();
   await manualInputs.nth(1).fill('4');
   await manualInputs.nth(1).blur();
-  await manualInputs.nth(2).fill('3');
+  await manualInputs.nth(2).fill('0');
   await manualInputs.nth(2).blur();
+  await manualInputs.nth(3).fill('3');
+  await manualInputs.nth(3).blur();
   const firstScoreCard = page.locator('.tableos-score-table > article').first();
   assert.ok(await firstScoreCard.getByText(/总分/).isVisible());
   assert.equal(await firstScoreCard.locator('output').last().textContent(), '13');
