@@ -161,6 +161,123 @@ async function runPrimaryFlow() {
   await context.close();
 }
 
+async function rematchMainGame(page) {
+  await page.getByRole('tab', { name: 'Results', exact: true }).click();
+  await page.getByRole('button', { name: 'Finish Game', exact: true }).click();
+  await page.getByRole('button', { name: 'Rematch (Keep Players)', exact: true }).click();
+  await page.getByRole('tab', { name: 'Flow', exact: true }).waitFor({ state: 'visible' });
+}
+
+async function runQuietLifecycleFlow() {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US' });
+  const page = await context.newPage();
+  page.on('dialog', dialog => dialog.accept());
+  await page.goto(url, { waitUntil: 'networkidle' });
+  await page.evaluate(() => localStorage.clear());
+  await page.reload({ waitUntil: 'networkidle' });
+
+  await page.locator('[data-action="start-session"]').click();
+  await openTableOs(page);
+  assert.equal(await page.locator('[data-tableos-companion-action="new-session"]').count(), 0, 'first association is silent');
+  await page.locator('.tableos-header [data-os-action="close"]').click();
+  await rematchMainGame(page);
+  await openTableOs(page);
+  assert.equal(await page.locator('[data-tableos-companion-action="new-session"]').count(), 0, 'empty Table OS does not nag on rematch');
+  await context.close();
+}
+
+async function runSessionLifecycleFlow() {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US' });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('dialog', dialog => dialog.accept());
+
+  await page.goto(url, { waitUntil: 'networkidle' });
+  await page.evaluate(() => localStorage.clear());
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.locator('[data-action="start-session"]').click();
+  await openTableOs(page);
+  await page.locator('[data-os-quick-template="campaign"]').click();
+
+  // Seed both persistent campaign state and transient session state.
+  await page.getByRole('button', { name: 'Trackers', exact: true }).click();
+  const teamResource = page.locator('.tableos-module').filter({ hasText: 'Team resources' }).first();
+  const teamResourceValue = teamResource.locator('[data-os-tracker-value]').first();
+  await teamResourceValue.fill('5');
+  await teamResourceValue.blur();
+  const health = page.locator('.tableos-module').filter({ hasText: 'Health' }).first();
+  const healthValue = health.locator('[data-os-tracker-value]').first();
+  await healthValue.fill('7');
+  await healthValue.blur();
+
+  await page.getByRole('button', { name: 'Phases', exact: true }).click();
+  await page.locator('[data-os-action="next-phase"]').click();
+  await page.getByRole('button', { name: 'Score sheet', exact: true }).click();
+  const scoreValue = page.locator('[data-os-score-value]').first();
+  await scoreValue.fill('9');
+  await scoreValue.blur();
+
+  await page.getByRole('button', { name: 'Edit setup', exact: true }).click();
+  await page.getByRole('button', { name: 'Teams & roles', exact: true }).click();
+  const roleInput = page.locator('[data-os-role-name]').first();
+  await roleInput.fill('Scout');
+  await roleInput.blur();
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+
+  const seeded = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1')));
+  assert.equal(seeded.campaign.sessionNumber, 1);
+  assert.equal(seeded.roles[0]?.role, 'Scout');
+  assert.equal(seeded.phases.activeIndex, 1);
+
+  // First rematch: detection is explicit, and Keep Table State must be non-destructive.
+  await page.locator('.tableos-header [data-os-action="close"]').click();
+  await rematchMainGame(page);
+  await openTableOs(page);
+  const newSession = page.locator('[data-tableos-companion-action="new-session"]');
+  const keepSession = page.locator('[data-tableos-companion-action="keep-session"]');
+  await newSession.waitFor({ state: 'visible' });
+  assert.match(await page.locator('[data-tableos-main-context]').textContent(), /New main game detected/);
+  assert.equal(await page.locator('[data-tableos-companion-action="sync"]').count(), 0, 'lifecycle decision takes priority over roster sync');
+  await keepSession.click();
+  await newSession.waitFor({ state: 'detached' });
+  assert.ok(await page.getByText('Current table state kept.', { exact: true }).isVisible());
+  const kept = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1')));
+  assert.equal(kept.campaign.sessionNumber, 1, 'keeping state does not advance campaign session');
+  assert.equal(kept.roles[0]?.role, 'Scout', 'keeping state preserves roles');
+  assert.equal(kept.phases.activeIndex, 1, 'keeping state preserves phase');
+  assert.ok(Object.values(kept.scoreSheet.values || {}).some(values => Object.values(values || {}).includes(9)), 'keeping state preserves advanced score');
+  assert.ok(kept.trackers.some(tracker => tracker.name === 'Health' && Object.values(tracker.values || {}).includes(7)), 'keeping state preserves session tracker values');
+
+  // Second rematch: Start New Table applies the existing safe session reset exactly once.
+  await page.locator('.tableos-header [data-os-action="close"]').click();
+  await rematchMainGame(page);
+  await openTableOs(page);
+  await newSession.waitFor({ state: 'visible' });
+  await newSession.click();
+  await page.getByText('Session state reset for the new game.', { exact: true }).waitFor({ state: 'visible' });
+  await newSession.waitFor({ state: 'detached' });
+
+  const reset = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1')));
+  const resourceTracker = reset.trackers.find(tracker => tracker.name === 'Team resources');
+  const healthTracker = reset.trackers.find(tracker => tracker.name === 'Health');
+  assert.equal(resourceTracker?.values?.global, 5, 'campaign-persistent tracker survives rematch reset');
+  assert.equal(Object.keys(healthTracker?.values || {}).length, 0, 'session tracker values are cleared');
+  assert.equal(reset.phases.activeIndex, 0, 'phase returns to first step');
+  assert.equal(reset.phases.cycle, 1, 'phase cycle returns to one');
+  assert.equal(reset.roles.length, 0, 'private roles do not leak into the next table session');
+  assert.equal(Object.keys(reset.scoreSheet.values || {}).length, 0, 'advanced score values are cleared');
+  assert.equal(reset.campaign.sessionNumber, 2, 'campaign session advances once when user starts a new table session');
+
+  const bridge = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-table-os-companion-v1')));
+  const game = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-state-v2')));
+  const roundOne = game.score.rounds.find(round => Number(round.round) === 1);
+  assert.equal(bridge.associatedMainSessionId, `round:${roundOne.createdAt}`, 'companion associates with the accepted main-game rematch');
+  assert.equal(errors.length, 0, `Table OS lifecycle console errors: ${errors.join(' | ')}`);
+  await context.close();
+}
+
 async function runTouchTargetSmoke() {
   const context = await browser.newContext({ viewport: { width: 320, height: 568 }, locale: 'zh-CN' });
   const page = await context.newPage();
@@ -190,6 +307,8 @@ async function run() {
 
   browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
   await runPrimaryFlow();
+  await runQuietLifecycleFlow();
+  await runSessionLifecycleFlow();
   await runTouchTargetSmoke();
 
   console.log(JSON.stringify({
@@ -199,6 +318,8 @@ async function run() {
       'live main-game context', 'timer continuity', 'roster-drift detection', 'one-tap roster sync',
       'tracker undo', 'direct-value undo', 'exact clamped tracker undo', 'exact phase-boundary undo',
       'ordinary phase undo', 'main-timer bridge', 'contextual accessibility labels',
+      'quiet empty rematch', 'new-session detection', 'keep-current lifecycle choice',
+      'safe rematch reset', 'campaign tracker persistence across rematch', 'transient state reset across rematch',
       '44px live touch targets', '320px overflow'
     ]
   }, null, 2));
