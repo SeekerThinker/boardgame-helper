@@ -1,5 +1,6 @@
 .tableos-companion {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   margin: 10px 0 2px;
@@ -50,6 +51,21 @@
   align-items: center;
 }
 
+.tableos-companion-session {
+  display: flex;
+  flex: 1 1 100%;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  color: #fef3c7;
+  font-size: 13px;
+}
+
+.tableos-companion-session > div {
+  display: flex;
+  gap: 7px;
+}
+
 .tableos-companion-notice {
   color: #99f6e4;
   font-size: 12px;
@@ -83,6 +99,16 @@
 
   .tableos-companion-actions {
     width: 100%;
+  }
+
+  .tableos-companion-session {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .tableos-companion-session > div {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
   }
 
   .tableos-companion-actions .tableos-btn {

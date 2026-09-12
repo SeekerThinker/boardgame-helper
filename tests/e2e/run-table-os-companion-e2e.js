@@ -88,6 +88,49 @@ async function runPrimaryFlow() {
   });
   await syncRoster.waitFor({ state: 'detached' });
 
+  // A changed main-session identity prompts instead of destructively resetting Table OS.
+  await page.evaluate(() => {
+    const gameKey = 'board-game-assistant-state-v2';
+    const tableKey = 'board-game-assistant-table-os-v1';
+    const game = JSON.parse(localStorage.getItem(gameKey));
+    const table = JSON.parse(localStorage.getItem(tableKey));
+    table.roles = [{ participantId: table.participants[0].id, role: 'Scout', faction: '', note: '', secret: true }];
+    localStorage.setItem(tableKey, JSON.stringify(table));
+    game.session.startedAt = '2099-01-02T00:00:00.000Z';
+    localStorage.setItem(gameKey, JSON.stringify(game));
+  });
+  await page.reload({ waitUntil: 'networkidle' });
+  await openTableOs(page);
+  const newSession = page.locator('[data-tableos-companion-action="new-session"]');
+  await newSession.waitFor({ state: 'visible' });
+  assert.equal((await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1')).roles.length)), 1, 'detection does not reset state');
+  await newSession.click();
+  await newSession.waitFor({ state: 'detached' });
+  const resetState = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1')));
+  assert.equal(resetState.roles.length, 0, 'explicit new-game action clears session roles');
+  assert.equal(resetState.mainSession.startedAt, '2099-01-02T00:00:00.000Z');
+
+  // Keeping the current table acknowledges the new identity without changing live Table OS data.
+  await page.evaluate(() => {
+    const gameKey = 'board-game-assistant-state-v2';
+    const tableKey = 'board-game-assistant-table-os-v1';
+    const game = JSON.parse(localStorage.getItem(gameKey));
+    const table = JSON.parse(localStorage.getItem(tableKey));
+    table.roles = [{ participantId: table.participants[0].id, role: 'Scout', faction: '', note: '', secret: true }];
+    localStorage.setItem(tableKey, JSON.stringify(table));
+    game.session.startedAt = '2099-01-03T00:00:00.000Z';
+    localStorage.setItem(gameKey, JSON.stringify(game));
+  });
+  await page.reload({ waitUntil: 'networkidle' });
+  await openTableOs(page);
+  const keepSession = page.locator('[data-tableos-companion-action="keep-session"]');
+  await keepSession.waitFor({ state: 'visible' });
+  await keepSession.click();
+  await keepSession.waitFor({ state: 'detached' });
+  const keptState = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1')));
+  assert.equal(keptState.roles[0].role, 'Scout', 'continue action preserves current Table OS state');
+  assert.equal(keptState.mainSession.startedAt, '2099-01-03T00:00:00.000Z');
+
   // Start a useful live workspace without entering the editor.
   await page.locator('[data-os-quick-template="coop-crisis"]').click();
   await page.getByRole('button', { name: '追踪器', exact: true }).click();
@@ -199,6 +242,7 @@ async function run() {
       'live main-game context', 'timer continuity', 'roster-drift detection', 'one-tap roster sync',
       'tracker undo', 'direct-value undo', 'exact clamped tracker undo', 'exact phase-boundary undo',
       'ordinary phase undo', 'main-timer bridge', 'contextual accessibility labels',
+      'new-session prompt', 'explicit safe session reset', 'non-destructive session continue',
       '44px live touch targets', '320px overflow'
     ]
   }, null, 2));

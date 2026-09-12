@@ -25,5 +25,8 @@ The following are release blockers rather than optional polish:
 - Play mode must not expose template selectors, score formula configuration or roster edit fields.
 - Advanced configuration must remain reachable in one action through Edit mode.
 - Existing basic timer/scoring flows must remain unchanged by Table OS work.
+- Initial main-session association is silent; a changed `startedAt` prompts without mutating Table OS state.
+- Starting a detected new game explicitly resets session state and acknowledges the identity; continuing only acknowledges it.
+- Rematch rosters with regenerated source IDs preserve unambiguous name-and-color participant matches and campaign tracker values.
 
 The production Android signing key, Apple distribution identity/profile and store-console metadata remain external release prerequisites and are not fabricated by CI.

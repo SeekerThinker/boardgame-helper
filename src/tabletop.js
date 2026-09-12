@@ -8,7 +8,7 @@ import {
   addTeam, removeTeam, toggleTeamMember, setRole, clearRole, roleForParticipant,
   addScoreSheetField, removeScoreSheetField, setScoreSheetValue, scoreCardForParticipant,
   addCampaignFlag, toggleCampaignFlag, removeCampaignFlag,
-  applyAssistantTemplate, resetTableOsSession, serializeTableOsState, parseTableOsState, touch
+  applyAssistantTemplate, resetTableOsSession, associateMainSession, serializeTableOsState, parseTableOsState, touch
 } from './tabletop-core.js';
 
 const LEGACY_GAME_STATE_KEY = 'board-game-assistant-state-v1';
@@ -118,11 +118,23 @@ function readGamePlayers() {
   return Array.isArray(parsed?.players) ? parsed.players : [];
 }
 
+function currentMainSessionStartedAt() {
+  const startedAt = readGameState()?.session?.startedAt;
+  return typeof startedAt === 'string' && startedAt ? startedAt : null;
+}
+
 function initializeParticipants() {
   if (state.participants.length) return;
   const players = readGamePlayers();
   if (!players.length) return;
   syncParticipantsFromGame(state, players);
+  persist();
+}
+
+function initializeMainSessionAssociation() {
+  const startedAt = currentMainSessionStartedAt();
+  if (!startedAt || state.mainSession?.startedAt) return;
+  associateMainSession(state, startedAt);
   persist();
 }
 
@@ -176,7 +188,12 @@ function renderLauncher() {
     launcher = document.createElement('button');
     launcher.id = 'tableos-launcher';
     launcher.type = 'button';
-    launcher.addEventListener('click', () => { isOpen = true; initializeParticipants(); render(); });
+    launcher.addEventListener('click', () => {
+      isOpen = true;
+      initializeParticipants();
+      initializeMainSessionAssociation();
+      render();
+    });
     document.body.append(launcher);
   }
   launcher.textContent = tr('launcher');
@@ -448,6 +465,23 @@ async function importFile(file) {
 }
 
 function bindEvents() {
+  document.addEventListener('tableos:associate-main-session', event => {
+    const startedAt = event.detail?.startedAt || currentMainSessionStartedAt();
+    if (!startedAt) return;
+    associateMainSession(state, startedAt);
+    persist();
+  });
+
+  document.addEventListener('tableos:start-new-main-session', event => {
+    const startedAt = event.detail?.startedAt || currentMainSessionStartedAt();
+    if (!startedAt) return;
+    resetTableOsSession(state);
+    syncParticipantsFromGame(state, readGamePlayers(), { reuseMatchingProfiles: true });
+    associateMainSession(state, startedAt);
+    persist();
+    render();
+  });
+
   document.addEventListener('click', event => {
     const target = event.target instanceof Element ? event.target.closest('[data-os-action],[data-os-mode],[data-os-section],[data-os-quick-template],[data-os-remove-participant],[data-os-tracker-delta],[data-os-remove-tracker],[data-os-phase-active],[data-os-remove-phase],[data-os-remove-team],[data-os-role-reveal],[data-os-role-clear],[data-os-remove-score],[data-os-flag-toggle],[data-os-flag-remove]') : null;
     if (!target) return;
@@ -460,7 +494,7 @@ function bindEvents() {
     if (d.osQuickTemplate) { applyTemplate(d.osQuickTemplate, false); return; }
     if (d.osAction === 'sync') { syncParticipantsFromGame(state, readGamePlayers()); persist(); flash(tr('synced')); return; }
     if (d.osAction === 'apply-template') { applyTemplate(selectedTemplateId, true); return; }
-    if (d.osAction === 'reset') { if (confirm(tr('confirmReset'))) { resetTableOsSession(state); persist(); render(); } return; }
+    if (d.osAction === 'reset') { if (confirm(tr('confirmReset'))) { resetTableOsSession(state); associateMainSession(state, currentMainSessionStartedAt()); persist(); render(); } return; }
     if (d.osAction === 'export') { exportState(); return; }
     if (d.osAction === 'import') { document.getElementById('tableos-import-file')?.click(); return; }
     if (d.osAction === 'open-timer') { isOpen = false; render(); document.querySelector('[data-tab="flow"]')?.click(); return; }

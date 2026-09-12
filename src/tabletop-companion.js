@@ -1,5 +1,5 @@
 import { STORAGE_KEY } from './core.js';
-import { TABLE_OS_STORAGE_KEY } from './tabletop-core.js';
+import { TABLE_OS_STORAGE_KEY, isNewMainSession } from './tabletop-core.js';
 
 const I18N = {
   zh: {
@@ -7,14 +7,16 @@ const I18N = {
     undo: '撤销上一步', undone: '已撤销上一步。', undoUnavailable: '这一步已经无法撤销。',
     trackerAction: '状态调整', phaseAction: '阶段切换', scoreAction: '计分修改', flagAction: '检查点修改',
     increase: '增加', decrease: '减少', setValue: '设置', switchPhase: '切换到阶段',
-    rosterChanged: '主对局玩家已变更', syncRoster: '同步玩家', rosterSynced: '已同步主对局玩家。'
+    rosterChanged: '主对局玩家已变更', syncRoster: '同步玩家', rosterSynced: '已同步主对局玩家。',
+    newSession: '检测到新的主牌局', startNewSession: '开始新一局', keepTable: '继续当前桌面状态', newSessionStarted: '已开始新一局。'
   },
   en: {
     mainGame: 'Main game', round: 'Round {value}', running: 'Running', paused: 'Paused', openFlow: 'Main timer',
     undo: 'Undo last action', undone: 'Last action undone.', undoUnavailable: 'That action can no longer be undone.',
     trackerAction: 'Tracker adjustment', phaseAction: 'Phase change', scoreAction: 'Score edit', flagAction: 'Checkpoint change',
     increase: 'Increase', decrease: 'Decrease', setValue: 'Set', switchPhase: 'Switch to phase',
-    rosterChanged: 'Main-game players changed', syncRoster: 'Sync players', rosterSynced: 'Main-game players synced.'
+    rosterChanged: 'Main-game players changed', syncRoster: 'Sync players', rosterSynced: 'Main-game players synced.',
+    newSession: 'New main game detected', startNewSession: 'Start new game', keepTable: 'Keep current table state', newSessionStarted: 'New game started.'
   }
 };
 
@@ -109,13 +111,17 @@ function mainGameContext() {
   if (!game || game.screen !== 'workspace') return null;
   const players = Array.isArray(game.players) ? game.players : [];
   const active = players.find(player => player.id === game.timer?.activePlayerId) || players[0] || null;
+  const startedAt = typeof game.session?.startedAt === 'string' ? game.session.startedAt : null;
+  const associatedStartedAt = readTableOsState()?.mainSession?.startedAt || null;
   return {
     session: String(game.session?.name || '').trim() || tr('mainGame'),
     round: Math.max(1, Number(game.timer?.round) || 1),
     player: displayPlayer(game, active),
     seconds: currentTimerSeconds(game),
     running: Boolean(game.timer?.running),
-    rosterDrift: rosterNeedsSync(game)
+    rosterDrift: rosterNeedsSync(game),
+    startedAt,
+    newSession: isNewMainSession({ mainSession: { startedAt: associatedStartedAt } }, startedAt)
   };
 }
 
@@ -283,6 +289,17 @@ function openMainFlow() {
   queueMicrotask(() => document.querySelector('[data-tab="flow"]')?.click());
 }
 
+function resolveNewSession(startFresh) {
+  const context = mainGameContext();
+  if (!context?.startedAt) return;
+  document.dispatchEvent(new CustomEvent(startFresh ? 'tableos:start-new-main-session' : 'tableos:associate-main-session', {
+    detail: { startedAt: context.startedAt }
+  }));
+  lastUndo = null;
+  showNotice(startFresh ? tr('newSessionStarted') : '');
+  queueRefresh();
+}
+
 function enhanceAccessibility(sheet) {
   sheet.querySelectorAll('.tableos-module').forEach(module => {
     const trackerName = module.querySelector('.tableos-live-head strong')?.textContent?.trim()
@@ -316,12 +333,16 @@ function enhanceAccessibility(sheet) {
 }
 
 function companionMarkup(context) {
+  const sessionPrompt = context?.newSession ? `<div class="tableos-companion-session" role="status">
+      <strong>${esc(tr('newSession'))}</strong>
+      <div><button type="button" class="tableos-btn" data-tableos-companion-action="new-session">${esc(tr('startNewSession'))}</button><button type="button" class="tableos-btn subtle" data-tableos-companion-action="keep-session">${esc(tr('keepTable'))}</button></div>
+    </div>` : '';
   const contextMarkup = context ? `<div class="tableos-companion-main" data-tableos-main-context>
       <span>${esc(tr('mainGame'))}</span><strong>${esc(context.session)}</strong>
       <small>${esc(tr('round', { value: context.round }))} · ${esc(context.player)} · <b data-tableos-main-time>${esc(formatClock(context.seconds))}</b> · ${esc(context.running ? tr('running') : tr('paused'))}${context.rosterDrift ? ` · <em>${esc(tr('rosterChanged'))}</em>` : ''}</small>
     </div>` : '';
   const actions = `${lastUndo ? `<button type="button" class="tableos-btn" data-tableos-companion-action="undo" title="${esc(lastUndo.label)}">↶ ${esc(tr('undo'))}</button>` : ''}${context?.rosterDrift ? `<button type="button" class="tableos-btn" data-tableos-companion-action="sync">${esc(tr('syncRoster'))}</button>` : ''}${context ? `<button type="button" class="tableos-btn" data-tableos-companion-action="flow">${esc(tr('openFlow'))}</button>` : ''}`;
-  return `${contextMarkup}<div class="tableos-companion-actions">${actions}</div>${notice ? `<span class="tableos-companion-notice" role="status">${esc(notice)}</span>` : ''}`;
+  return `${contextMarkup}${sessionPrompt}<div class="tableos-companion-actions">${actions}</div>${notice ? `<span class="tableos-companion-notice" role="status">${esc(notice)}</span>` : ''}`;
 }
 
 function refreshCompanion() {
@@ -392,6 +413,8 @@ document.addEventListener('click', event => {
     if (companionAction.dataset.tableosCompanionAction === 'undo') executeUndo();
     if (companionAction.dataset.tableosCompanionAction === 'sync') syncRosterFromMain();
     if (companionAction.dataset.tableosCompanionAction === 'flow') openMainFlow();
+    if (companionAction.dataset.tableosCompanionAction === 'new-session') resolveNewSession(true);
+    if (companionAction.dataset.tableosCompanionAction === 'keep-session') resolveNewSession(false);
     return;
   }
   if (suppressCapture) return;

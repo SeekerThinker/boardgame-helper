@@ -455,6 +455,11 @@ function normalizeCampaign(value) {
   };
 }
 
+function normalizeMainSession(value) {
+  const startedAt = typeof value?.startedAt === 'string' ? value.startedAt.trim().slice(0, 40) : '';
+  return { startedAt: startedAt || null };
+}
+
 export function createDefaultTableOsState() {
   return {
     schemaVersion: TABLE_OS_SCHEMA_VERSION,
@@ -466,6 +471,7 @@ export function createDefaultTableOsState() {
     roles: [],
     scoreSheet: { fields: [], values: {} },
     campaign: { enabled: false, name: '', chapter: '', sessionNumber: 1, notes: '', flags: [] },
+    mainSession: { startedAt: null },
     ui: { activeSection: 'overview', mode: 'play' },
     updatedAt: new Date().toISOString()
   };
@@ -486,6 +492,7 @@ export function normalizeTableOsState(input) {
     roles: normalizeRoles(input.roles, participantIds),
     scoreSheet: normalizeScoreSheet(input.scoreSheet, participantIds),
     campaign: normalizeCampaign(input.campaign),
+    mainSession: normalizeMainSession(input.mainSession),
     ui: {
       activeSection: ['overview', 'trackers', 'phases', 'teams', 'score', 'campaign'].includes(input.ui?.activeSection)
         ? input.ui.activeSection
@@ -502,16 +509,38 @@ export function touch(state) {
   return state;
 }
 
-export function syncParticipantsFromGame(state, basePlayers = []) {
+export function associateMainSession(state, startedAt) {
+  state.mainSession = normalizeMainSession({ startedAt });
+  return touch(state);
+}
+
+export function isNewMainSession(state, startedAt) {
+  const current = normalizeMainSession({ startedAt }).startedAt;
+  const associated = normalizeMainSession(state?.mainSession).startedAt;
+  return Boolean(current && associated && current !== associated);
+}
+
+export function syncParticipantsFromGame(state, basePlayers = [], { reuseMatchingProfiles = false } = {}) {
   const gamePlayers = Array.isArray(basePlayers) ? basePlayers.slice(0, MAX_TABLE_OS_PARTICIPANTS) : [];
   const existingBySource = new Map(
     state.participants.filter(participant => participant.sourcePlayerId).map(participant => [participant.sourcePlayerId, participant])
   );
+  const claimed = new Set();
   const synced = gamePlayers.map((player, index) => {
     const sourcePlayerId = identifier(player?.id ?? `player_${index + 1}`, 'src_');
-    const current = existingBySource.get(sourcePlayerId);
+    let current = existingBySource.get(sourcePlayerId);
+    if (!current && reuseMatchingProfiles) {
+      const playerName = text(player?.name, 32);
+      const playerColor = color(player?.color, index).toLowerCase();
+      const matches = state.participants.filter(participant => participant.sourcePlayerId
+        && !claimed.has(participant.id)
+        && participant.name === playerName
+        && participant.color.toLowerCase() === playerColor);
+      if (matches.length === 1) current = matches[0];
+    }
+    if (current) claimed.add(current.id);
     return current
-      ? { ...current, name: text(player?.name || current.name || `Player ${index + 1}`, 32), color: color(player?.color || current.color, index) }
+      ? { ...current, sourcePlayerId, name: text(player?.name || current.name || `Player ${index + 1}`, 32), color: color(player?.color || current.color, index) }
       : participantTemplate(player?.name || `Player ${index + 1}`, index, sourcePlayerId, player?.color);
   });
   const extras = state.participants.filter(participant => !participant.sourcePlayerId);

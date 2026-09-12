@@ -7,7 +7,7 @@ import {
   addPhase, setActivePhase, advancePhase,
   addTeam, toggleTeamMember, setRole, roleForParticipant,
   addScoreSheetField, setScoreSheetValue, evaluateFormula, scoreCardForParticipant,
-  addCampaignFlag, toggleCampaignFlag, applyAssistantTemplate, resetTableOsSession,
+  addCampaignFlag, toggleCampaignFlag, applyAssistantTemplate, resetTableOsSession, associateMainSession, isNewMainSession,
   serializeTableOsState, parseTableOsState
 } from '../../src/tabletop-core.js';
 
@@ -32,6 +32,43 @@ test('game roster sync preserves stable source participants and assistant-only e
   assert.equal(state.participants[0].id, aliceId, 'source player keeps the Table OS participant id');
   assert.deepEqual(participantNames(state), ['Alice 2', 'Carol', 'Guest']);
   assert.equal(state.participants[2].sourcePlayerId, null);
+});
+
+test('new-session roster sync can preserve participant identity across regenerated source ids', () => {
+  const state = createDefaultTableOsState();
+  syncParticipantsFromGame(state, [{ id: 'old', name: 'Alice', color: '#f97316' }]);
+  const participantId = state.participants[0].id;
+  const experience = addTracker(state, { name: 'XP', scope: 'participant', persistence: 'campaign' });
+  setTrackerValue(state, experience.id, participantId, 7);
+
+  syncParticipantsFromGame(state, [{ id: 'new', name: 'Alice', color: '#f97316' }], { reuseMatchingProfiles: true });
+
+  assert.equal(state.participants[0].id, participantId);
+  assert.equal(state.participants[0].sourcePlayerId, 'new');
+  assert.equal(trackerValue(experience, participantId), 7);
+});
+
+test('new-session roster sync does not guess between duplicate player profiles', () => {
+  const state = createDefaultTableOsState();
+  syncParticipantsFromGame(state, [
+    { id: 'old-1', name: 'Guest', color: '#f97316' },
+    { id: 'old-2', name: 'Guest', color: '#f97316' }
+  ]);
+  const oldIds = state.participants.map(participant => participant.id);
+
+  syncParticipantsFromGame(state, [{ id: 'new', name: 'Guest', color: '#f97316' }], { reuseMatchingProfiles: true });
+
+  assert.equal(oldIds.includes(state.participants[0].id), false, 'ambiguous profile creates a fresh participant');
+  assert.equal(state.participants[0].sourcePlayerId, 'new');
+});
+
+test('main-session association only reports a change after an initial identity is known', () => {
+  const state = createDefaultTableOsState();
+  assert.equal(isNewMainSession(state, '2026-01-01T00:00:00.000Z'), false);
+  associateMainSession(state, '2026-01-01T00:00:00.000Z');
+  assert.equal(isNewMainSession(state, '2026-01-01T00:00:00.000Z'), false);
+  assert.equal(isNewMainSession(state, '2026-01-02T00:00:00.000Z'), true);
+  assert.equal(normalizeTableOsState(state).mainSession.startedAt, '2026-01-01T00:00:00.000Z');
 });
 
 test('participant capacity is bounded for large moderator games', () => {
