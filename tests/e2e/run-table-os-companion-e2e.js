@@ -80,8 +80,13 @@ async function runPrimaryFlow() {
   assert.match(await mainContext.textContent(), /主对局玩家已变更/);
   await syncRoster.click();
   assert.ok(await page.getByText('已同步主对局玩家。', { exact: true }).isVisible());
-  assert.ok(await page.locator('.tableos-person-readonly strong').filter({ hasText: 'Alice' }).isVisible(), 'one-tap roster sync updates Table OS participants');
-  assert.equal(await page.locator('[data-tableos-companion-action="sync"]').count(), 0, 'sync affordance disappears after roster alignment');
+  await page.waitForFunction(() => {
+    const raw = localStorage.getItem('board-game-assistant-table-os-v1');
+    const table = raw ? JSON.parse(raw) : null;
+    return Array.isArray(table?.participants)
+      && table.participants.some(participant => participant?.sourcePlayerId && participant.name === 'Alice');
+  });
+  await syncRoster.waitFor({ state: 'detached' });
 
   // Start a useful live workspace without entering the editor.
   await page.locator('[data-os-quick-template="coop-crisis"]').click();
