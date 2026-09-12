@@ -4,6 +4,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { createDefaultState, ensureRound, recalculateScores, STORAGE_KEY } from '../src/core.js';
+import {
+  TABLE_OS_STORAGE_KEY, createDefaultTableOsState, syncParticipantsFromGame,
+  applyAssistantTemplate, setTrackerValue
+} from '../src/tabletop-core.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const port = Number(process.env.STORE_ASSET_PORT || 4179);
@@ -16,7 +20,7 @@ const devices = [
   { id: 'ipad-13', output: 'app-store-assets/screenshots', width: 1032, height: 1376, scale: 2 }
 ];
 
-const screens = ['01-flow', '02-score', '03-history', '04-tools', '05-results'];
+const screens = ['01-flow', '02-score', '03-table-os', '04-tools', '05-results'];
 
 function fixture(locale) {
   const state = createDefaultState(locale);
@@ -64,6 +68,28 @@ function fixture(locale) {
   return state;
 }
 
+function tableOsFixture(gameState, locale) {
+  const state = createDefaultTableOsState();
+  syncParticipantsFromGame(state, gameState.players);
+  applyAssistantTemplate(state, 'coop-crisis', { locale });
+  const threatName = locale === 'en' ? 'Threat' : '威胁';
+  const sharedHealthName = locale === 'en' ? 'Shared health' : '公共生命';
+  const personalHealthName = locale === 'en' ? 'Player health' : '个人生命';
+  const threat = state.trackers.find(item => item.name === threatName);
+  const sharedHealth = state.trackers.find(item => item.name === sharedHealthName);
+  const personalHealth = state.trackers.find(item => item.name === personalHealthName);
+  if (threat) setTrackerValue(state, threat.id, 'global', 4);
+  if (sharedHealth) setTrackerValue(state, sharedHealth.id, 'global', 7);
+  if (personalHealth) {
+    state.participants.forEach((participant, index) => setTrackerValue(state, personalHealth.id, participant.id, 10 - index * 2));
+  }
+  state.phases.activeIndex = 2;
+  state.phases.cycle = 3;
+  state.ui.activeSection = 'trackers';
+  state.ui.mode = 'play';
+  return state;
+}
+
 async function waitForServer() {
   for (let attempt = 0; attempt < 50; attempt += 1) {
     try {
@@ -75,14 +101,23 @@ async function waitForServer() {
   throw new Error(`Preview server did not start at ${baseUrl}`);
 }
 
-async function captureView(page, screen, outputPath) {
+async function captureView(page, screen, outputPath, locale, gameState) {
   await page.evaluate(() => {
     document.documentElement.style.scrollBehavior = 'auto';
     window.scrollTo(0, 0);
   });
 
   if (screen === '01-flow') await page.locator('[data-tab="flow"]').click();
-  if (screen === '02-score' || screen === '03-history') await page.locator('[data-tab="score"]').click();
+  if (screen === '02-score') await page.locator('[data-tab="score"]').click();
+  if (screen === '03-table-os') {
+    await page.evaluate(({ key, value }) => localStorage.setItem(key, value), {
+      key: TABLE_OS_STORAGE_KEY,
+      value: JSON.stringify(tableOsFixture(gameState, locale))
+    });
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.getByRole('button', { name: locale === 'zh' ? '高级桌游助手' : 'Advanced Table Assistant' }).click();
+    await page.getByRole('button', { name: locale === 'zh' ? '追踪器' : 'Trackers', exact: true }).click();
+  }
   if (screen === '04-tools') await page.locator('[data-tab="tools"]').click();
   if (screen === '05-results') {
     await page.evaluate(key => {
@@ -92,24 +127,16 @@ async function captureView(page, screen, outputPath) {
       state.activeTool = 'summary';
       localStorage.setItem(key, JSON.stringify(state));
     }, STORAGE_KEY);
-    await page.reload();
+    await page.reload({ waitUntil: 'networkidle' });
     await page.locator('[data-tab="summary"]').click();
-  }
-
-  if (screen === '03-history') {
-    // Compose a focused history view using the real rendered history column.
-    // This avoids duplicate iPad screenshots when the whole score page fits in
-    // a tall viewport, while keeping the app header and tab context visible.
-    await page.locator('.score-layout').evaluate(layout => {
-      const editorColumn = layout.firstElementChild;
-      if (editorColumn) editorColumn.style.display = 'none';
-      layout.style.gridTemplateColumns = 'minmax(0, 1fr)';
-    });
-    await page.evaluate(() => window.scrollTo(0, 0));
   }
 
   await page.waitForTimeout(50);
   await page.screenshot({ path: outputPath, type: 'png', animations: 'disabled' });
+
+  if (screen === '03-table-os') {
+    await page.getByRole('button', { name: locale === 'zh' ? '关闭' : 'Close' }).click();
+  }
 }
 
 async function createFeatureGraphic(browser) {
@@ -117,8 +144,8 @@ async function createFeatureGraphic(browser) {
   await page.setContent(`<!doctype html><html><style>
     *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#f8fafc}
     body{background:radial-gradient(circle at 16% 20%,#164e63 0,transparent 34%),radial-gradient(circle at 82% 76%,#713f12 0,transparent 32%),#07111f;padding:56px 68px;display:grid;grid-template-columns:1fr 390px;gap:54px;align-items:center}
-    .eyebrow{color:#5eead4;font-size:19px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}.title{font-size:54px;line-height:1.05;margin:16px 0 18px;font-weight:900}.sub{font-size:23px;line-height:1.45;color:#cbd5e1;max-width:530px}.card{height:350px;border:1px solid rgba(148,163,184,.28);border-radius:36px;background:rgba(15,23,42,.9);box-shadow:0 30px 70px rgba(0,0,0,.4);padding:28px;text-align:center}.round{color:#94a3b8;font-size:17px}.player{font-size:25px;font-weight:800;margin-top:25px}.timer{font-variant-numeric:tabular-nums;font-size:94px;font-weight:900;margin:14px 0;color:#f8fafc}.controls{display:flex;justify-content:center;gap:14px}.controls span{padding:13px 22px;border-radius:999px;background:#172033;color:#e2e8f0;font-weight:800}.controls .main{background:#14b8a6;color:#042f2e}.chips{display:flex;gap:12px;margin-top:25px}.chip{height:8px;flex:1;border-radius:99px}.orange{background:#f97316}.teal{background:#14b8a6}.blue{background:#3b82f6}.yellow{background:#eab308}
-  </style><body><section><div class="eyebrow">Board Game Assistant</div><div class="title">桌游助手</div><div class="sub">计时、计分、随机工具与结算<br>Timing, scoring, random tools & results</div></section><section class="card"><div class="round">第 3 轮 · ROUND 3</div><div class="player">阿岚 · YOUR TURN</div><div class="timer">01:18</div><div class="controls"><span>−30</span><span class="main">暂停</span><span>+30</span></div><div class="chips"><i class="chip orange"></i><i class="chip teal"></i><i class="chip blue"></i><i class="chip yellow"></i></div></section></body></html>`);
+    .eyebrow{color:#5eead4;font-size:19px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}.title{font-size:54px;line-height:1.05;margin:16px 0 18px;font-weight:900}.sub{font-size:22px;line-height:1.5;color:#cbd5e1;max-width:540px}.card{height:350px;border:1px solid rgba(148,163,184,.28);border-radius:36px;background:rgba(15,23,42,.9);box-shadow:0 30px 70px rgba(0,0,0,.4);padding:28px;text-align:center}.round{color:#94a3b8;font-size:17px}.player{font-size:25px;font-weight:800;margin-top:25px}.timer{font-variant-numeric:tabular-nums;font-size:94px;font-weight:900;margin:14px 0;color:#f8fafc}.controls{display:flex;justify-content:center;gap:14px}.controls span{padding:13px 22px;border-radius:999px;background:#172033;color:#e2e8f0;font-weight:800}.controls .main{background:#14b8a6;color:#042f2e}.chips{display:flex;gap:12px;margin-top:25px}.chip{height:8px;flex:1;border-radius:99px}.orange{background:#f97316}.teal{background:#14b8a6}.blue{background:#3b82f6}.yellow{background:#eab308}
+  </style><body><section><div class="eyebrow">Board Game Assistant · Table OS</div><div class="title">桌游助手</div><div class="sub">计时 · 计分 · 状态 · 阶段 · 身份 · 战役<br>Timers · scores · state · phases · roles · campaigns</div></section><section class="card"><div class="round">第 3 轮 · ROUND 3</div><div class="player">阿岚 · YOUR TURN</div><div class="timer">01:18</div><div class="controls"><span>−30</span><span class="main">暂停</span><span>+30</span></div><div class="chips"><i class="chip orange"></i><i class="chip teal"></i><i class="chip blue"></i><i class="chip yellow"></i></div></section></body></html>`);
   const output = path.join(root, 'google-play-assets', 'feature-graphic-1024x500.jpg');
   await fs.mkdir(path.dirname(output), { recursive: true });
   await page.screenshot({ path: output, type: 'jpeg', quality: 96 });
@@ -137,6 +164,14 @@ async function main() {
     browser = await chromium.launch();
     await createFeatureGraphic(browser);
     for (const locale of ['zh', 'en']) {
+      const outputRoots = [...new Set(devices.map(device => device.output))];
+      for (const outputRoot of outputRoots) {
+        const localeDir = path.join(root, outputRoot, locale);
+        await fs.rm(localeDir, { recursive: true, force: true });
+        await fs.mkdir(localeDir, { recursive: true });
+      }
+
+      const gameState = fixture(locale);
       for (const device of devices) {
         const context = await browser.newContext({
           viewport: { width: device.width, height: device.height },
@@ -144,17 +179,22 @@ async function main() {
           colorScheme: 'dark',
           locale: locale === 'zh' ? 'zh-CN' : 'en-US'
         });
-        await context.addInitScript(({ key, value }) => {
-          if (!localStorage.getItem(key)) localStorage.setItem(key, value);
-        }, { key: STORAGE_KEY, value: JSON.stringify(fixture(locale)) });
+        await context.addInitScript(({ gameKey, gameValue, tableKey, tableValue }) => {
+          if (!localStorage.getItem(gameKey)) localStorage.setItem(gameKey, gameValue);
+          if (!localStorage.getItem(tableKey)) localStorage.setItem(tableKey, tableValue);
+        }, {
+          gameKey: STORAGE_KEY,
+          gameValue: JSON.stringify(gameState),
+          tableKey: TABLE_OS_STORAGE_KEY,
+          tableValue: JSON.stringify(tableOsFixture(gameState, locale))
+        });
         const page = await context.newPage();
         await page.goto(baseUrl);
         await page.addStyleTag({ content: '*{transition:none!important;animation:none!important}html{scrollbar-width:none}::-webkit-scrollbar{display:none}' });
         const localeDir = path.join(root, device.output, locale);
-        await fs.mkdir(localeDir, { recursive: true });
         for (const screen of screens) {
           const outputPath = path.join(localeDir, `${device.id}-${screen}.png`);
-          await captureView(page, screen, outputPath);
+          await captureView(page, screen, outputPath, locale, gameState);
           process.stdout.write(`Generated ${path.relative(root, outputPath)}\n`);
         }
         await context.close();

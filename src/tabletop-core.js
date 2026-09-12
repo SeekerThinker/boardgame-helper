@@ -1,4 +1,4 @@
-export const TABLE_OS_SCHEMA_VERSION = 1;
+export const TABLE_OS_SCHEMA_VERSION = 2;
 export const TABLE_OS_STORAGE_KEY = 'board-game-assistant-table-os-v1';
 export const MAX_TABLE_OS_PARTICIPANTS = 32;
 export const MAX_TRACKERS = 24;
@@ -191,9 +191,9 @@ export const ASSISTANT_TEMPLATES = [
     descriptions: { zh: '跨局保存章节、检查点、解锁项、共享状态与角色状态。', en: 'Persist chapters, checkpoints, unlocks and character/shared state.' },
     phases: ['场景准备', '行动', '遭遇', '场景结算', '战役记录'],
     trackers: [
-      { name: '团队资源', scope: 'global', value: 0, min: 0, max: 999, step: 1 },
-      { name: '生命', scope: 'participant', value: 10, min: 0, max: 999, step: 1 },
-      { name: '经验', scope: 'participant', value: 0, min: 0, max: 9999, step: 1 }
+      { name: '团队资源', scope: 'global', value: 0, min: 0, max: 999, step: 1, persistence: 'campaign' },
+      { name: '生命', scope: 'participant', value: 10, min: 0, max: 999, step: 1, persistence: 'session' },
+      { name: '经验', scope: 'participant', value: 0, min: 0, max: 9999, step: 1, persistence: 'campaign' }
     ],
     scoreFields: [
       { key: 'scenario', name: '场景得分', kind: 'manual', step: 1, effect: 1, includeInTotal: true }
@@ -217,6 +217,63 @@ export const ASSISTANT_TEMPLATES = [
   }
 ];
 
+const EN_TEMPLATE_CONTENT = {
+  universal: {
+    phases: ['Setup', 'Action', 'Resolve'],
+    trackers: ['Shared resource'],
+    scoreFields: ['Points']
+  },
+  'engine-score': {
+    phases: ['Round start', 'Action', 'Upkeep', 'Round end'],
+    trackers: ['Round'],
+    scoreFields: ['Base', 'Bonus', 'Objective', 'Penalty', 'Net']
+  },
+  'trade-network': {
+    phases: ['Income', 'Action', 'Trade', 'Upkeep'],
+    trackers: ['Shared supply', 'Coins', 'Resources'],
+    scoreFields: ['Victory points']
+  },
+  'coop-crisis': {
+    phases: ['Player phase', 'Fast actions', 'Crisis phase', 'Slow actions', 'Cleanup'],
+    trackers: ['Threat', 'Shared health', 'Player health'],
+    scoreFields: ['Objectives', 'Damage']
+  },
+  'asymmetric-conflict': {
+    phases: ['Start', 'Action', 'Conflict', 'Upkeep', 'End'],
+    trackers: ['Influence', 'Resources', 'Reputation'],
+    scoreFields: ['Victory points']
+  },
+  'hidden-role': {
+    phases: ['Setup', 'Open discussion', 'Private phase', 'Vote / Resolution', 'Resolve'],
+    trackers: ['Alive count'],
+    scoreFields: ['Wins']
+  },
+  'card-battle': {
+    phases: ['Setup', 'Main phase', 'Combat', 'End'],
+    trackers: ['Health', 'Resources', 'Status'],
+    scoreFields: ['Wins']
+  },
+  campaign: {
+    phases: ['Scenario setup', 'Action', 'Encounter', 'Scenario resolution', 'Campaign record'],
+    trackers: ['Team resources', 'Health', 'Experience'],
+    scoreFields: ['Scenario score']
+  },
+  'party-teams': {
+    phases: ['Prompt', 'Answer', 'Judge', 'Switch sides'],
+    trackers: ['Team score'],
+    scoreFields: ['Player score']
+  }
+};
+
+function templateLocale(requested) {
+  if (requested === 'en' || requested === 'zh') return requested;
+  try {
+    return globalThis.document?.documentElement?.lang?.toLowerCase().startsWith('en') ? 'en' : 'zh';
+  } catch (_) {
+    return 'zh';
+  }
+}
+
 export function templateById(id) {
   return ASSISTANT_TEMPLATES.find(template => template.id === id) || ASSISTANT_TEMPLATES[0];
 }
@@ -231,6 +288,7 @@ function trackerFromTemplate(input, index = 0) {
     id: identifier(tracker.id, 'trk_'),
     name: text(tracker.name || `Tracker ${index + 1}`, 32),
     scope,
+    persistence: tracker.persistence === 'campaign' ? 'campaign' : 'session',
     min,
     max,
     step: Math.max(1, integer(tracker.step, 1, 1, 9999)),
@@ -408,7 +466,7 @@ export function createDefaultTableOsState() {
     roles: [],
     scoreSheet: { fields: [], values: {} },
     campaign: { enabled: false, name: '', chapter: '', sessionNumber: 1, notes: '', flags: [] },
-    ui: { activeSection: 'overview' },
+    ui: { activeSection: 'overview', mode: 'play' },
     updatedAt: new Date().toISOString()
   };
 }
@@ -431,7 +489,9 @@ export function normalizeTableOsState(input) {
     ui: {
       activeSection: ['overview', 'trackers', 'phases', 'teams', 'score', 'campaign'].includes(input.ui?.activeSection)
         ? input.ui.activeSection
-        : 'overview'
+        : 'overview',
+      // Edit mode is intentionally ephemeral. Reload/import always returns to the safer live-play surface.
+      mode: 'play'
     },
     updatedAt: typeof input.updatedAt === 'string' ? input.updatedAt : base.updatedAt
   };
@@ -496,12 +556,20 @@ function pruneParticipantReferences(state) {
   });
 }
 
-export function addTracker(state, { name = 'Tracker', scope = 'global', initial = 0, min = 0, max = 999, step = 1 } = {}) {
+export function addTracker(state, { name = 'Tracker', scope = 'global', initial = 0, min = 0, max = 999, step = 1, persistence = 'session' } = {}) {
   if (state.trackers.length >= MAX_TRACKERS) return null;
-  const tracker = trackerFromTemplate({ name, scope, value: initial, min, max, step }, state.trackers.length);
+  const tracker = trackerFromTemplate({ name, scope, value: initial, min, max, step, persistence }, state.trackers.length);
   state.trackers.push(tracker);
   touch(state);
   return tracker;
+}
+
+export function setTrackerPersistence(state, trackerId, persistence = 'session') {
+  const tracker = state.trackers.find(item => item.id === trackerId);
+  if (!tracker) return false;
+  tracker.persistence = persistence === 'campaign' ? 'campaign' : 'session';
+  touch(state);
+  return true;
 }
 
 export function removeTracker(state, trackerId) {
@@ -797,25 +865,42 @@ function resetTemplateModules(state) {
   state.campaign = { enabled: false, name: '', chapter: '', sessionNumber: 1, notes: '', flags: [] };
 }
 
-export function applyAssistantTemplate(state, templateId, { preserveParticipants = true } = {}) {
+export function applyAssistantTemplate(state, templateId, { preserveParticipants = true, locale = null } = {}) {
   const template = templateById(templateId);
+  const resolvedLocale = templateLocale(locale);
+  const translated = resolvedLocale === 'en' ? EN_TEMPLATE_CONTENT[template.id] : null;
   const participants = preserveParticipants ? state.participants.slice() : [];
   resetTemplateModules(state);
   state.participants = participants;
   state.appliedTemplateId = template.id;
-  state.phases.items = template.phases.slice(0, MAX_PHASES).map(name => ({ id: uid('phase_'), name, note: '' }));
-  state.trackers = template.trackers.slice(0, MAX_TRACKERS).map((tracker, index) => trackerFromTemplate(tracker, index));
+  state.phases.items = template.phases.slice(0, MAX_PHASES).map((name, index) => ({
+    id: uid('phase_'),
+    name: translated?.phases?.[index] || name,
+    note: ''
+  }));
+  state.trackers = template.trackers.slice(0, MAX_TRACKERS).map((tracker, index) => trackerFromTemplate({
+    ...tracker,
+    name: translated?.trackers?.[index] || tracker.name
+  }, index));
   const usedKeys = new Set();
-  state.scoreSheet.fields = template.scoreFields.slice(0, MAX_SCORE_FIELDS).map((field, index) => scoreFieldFromTemplate(field, index, usedKeys));
-  for (let index = 0; index < Math.min(MAX_TEAMS, template.teams || 0); index += 1) addTeam(state, `Team ${index + 1}`);
+  state.scoreSheet.fields = template.scoreFields.slice(0, MAX_SCORE_FIELDS).map((field, index) => scoreFieldFromTemplate({
+    ...field,
+    name: translated?.scoreFields?.[index] || field.name
+  }, index, usedKeys));
+  for (let index = 0; index < Math.min(MAX_TEAMS, template.teams || 0); index += 1) {
+    addTeam(state, resolvedLocale === 'en' ? `Team ${index + 1}` : `${index + 1}队`);
+  }
   state.campaign.enabled = Boolean(template.campaign);
   state.ui.activeSection = 'overview';
+  state.ui.mode = 'play';
   touch(state);
   return state;
 }
 
 export function resetTableOsSession(state) {
-  state.trackers.forEach(tracker => { tracker.values = {}; });
+  state.trackers.forEach(tracker => {
+    if (tracker.persistence !== 'campaign') tracker.values = {};
+  });
   state.phases.activeIndex = 0;
   state.phases.cycle = 1;
   state.roles = [];
