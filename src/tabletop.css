@@ -1,0 +1,144 @@
+#tableos-launcher {
+  position: fixed;
+  z-index: 70;
+  right: max(14px, env(safe-area-inset-right));
+  bottom: max(76px, calc(env(safe-area-inset-bottom) + 66px));
+  border: 1px solid rgba(148, 163, 184, .35);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, .94);
+  color: #e2e8f0;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, .34);
+  padding: 10px 14px;
+  font: 700 13px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: .02em;
+  backdrop-filter: blur(14px);
+}
+
+#tableos-launcher[data-active="true"]::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, .16);
+}
+
+#tableos-root { position: relative; z-index: 200; }
+.tableos-backdrop { position: fixed; inset: 0; background: rgba(2, 6, 23, .78); display: flex; align-items: flex-end; justify-content: center; padding: 12px 12px max(12px, env(safe-area-inset-bottom)); backdrop-filter: blur(8px); }
+.tableos-sheet { width: min(1180px, 100%); max-height: min(94vh, 980px); overflow: auto; background: #0b1120; color: #e2e8f0; border: 1px solid rgba(148, 163, 184, .25); border-radius: 24px; box-shadow: 0 28px 90px rgba(0, 0, 0, .55); padding: 20px; overscroll-behavior: contain; }
+.tableos-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.tableos-header h2 { margin: 2px 0 6px; color: #f8fafc; font-size: clamp(22px, 3vw, 34px); }
+.tableos-header p { margin: 0; color: #94a3b8; max-width: 720px; line-height: 1.55; }
+.tableos-kicker { color: #5eead4 !important; letter-spacing: .16em; font-size: 11px; font-weight: 800; }
+.tableos-icon, .tableos-mini { border: 1px solid rgba(148, 163, 184, .26); background: #111827; color: #cbd5e1; border-radius: 10px; cursor: pointer; }
+.tableos-icon { flex: 0 0 auto; width: 40px; height: 40px; font-size: 22px; }
+.tableos-mini { min-width: 32px; height: 32px; padding: 0 8px; }
+.tableos-btn { appearance: none; border: 1px solid rgba(148, 163, 184, .3); background: #111827; color: #e2e8f0; border-radius: 10px; padding: 9px 12px; font-weight: 700; cursor: pointer; }
+.tableos-btn:hover, .tableos-icon:hover, .tableos-mini:hover { border-color: rgba(94, 234, 212, .65); }
+.tableos-btn.primary { background: #0f766e; border-color: #14b8a6; color: white; }
+.tableos-btn.danger, .tableos-mini.danger { color: #fca5a5; border-color: rgba(248, 113, 113, .3); }
+.tableos-btn.wide { width: 100%; }
+.tableos-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-top: 18px; padding: 12px; border: 1px solid rgba(148, 163, 184, .15); background: rgba(15, 23, 42, .72); border-radius: 14px; }
+.tableos-template { min-width: min(280px, 100%); flex: 1 1 280px; }
+.tableos-template span, .tableos-form-grid label, .tableos-module-head label, .tableos-counter > span, .tableos-score-values label > span { display: block; color: #94a3b8; font-size: 12px; font-weight: 700; margin-bottom: 5px; }
+.tableos-template-note { color: #64748b; font-size: 12px; margin: 8px 2px 0; }
+.tableos-sheet input, .tableos-sheet select, .tableos-sheet textarea, .tableos-sheet output { box-sizing: border-box; width: 100%; border: 1px solid rgba(148, 163, 184, .24); border-radius: 9px; background: #0f172a; color: #e2e8f0; padding: 9px 10px; font: inherit; }
+.tableos-sheet input:focus, .tableos-sheet select:focus, .tableos-sheet textarea:focus { outline: 2px solid rgba(45, 212, 191, .45); outline-offset: 1px; border-color: #2dd4bf; }
+.tableos-nav { display: flex; gap: 6px; overflow-x: auto; padding: 14px 0 10px; scrollbar-width: thin; }
+.tableos-nav button { white-space: nowrap; appearance: none; border: 1px solid transparent; background: transparent; color: #94a3b8; border-radius: 999px; padding: 8px 12px; font-weight: 800; cursor: pointer; }
+.tableos-nav button.active { background: rgba(20, 184, 166, .12); color: #99f6e4; border-color: rgba(45, 212, 191, .26); }
+.tableos-content { min-height: 360px; }
+.tableos-grid { display: grid; gap: 12px; }
+.tableos-grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tableos-grid.align-start { align-items: start; }
+.tableos-card { margin-top: 12px; padding: 15px; border-radius: 16px; background: rgba(15, 23, 42, .76); border: 1px solid rgba(148, 163, 184, .15); }
+.tableos-card.hero-card { background: linear-gradient(135deg, rgba(13, 148, 136, .16), rgba(15, 23, 42, .85)); }
+.tableos-card > span, .tableos-card-head span { color: #64748b; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.tableos-card h3 { margin: 4px 0 6px; color: #f8fafc; font-size: 18px; }
+.tableos-card p { color: #94a3b8; line-height: 1.5; }
+.tableos-card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+.tableos-card-head.sub { margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(148, 163, 184, .14); }
+.tableos-inline-actions { display: flex; gap: 7px; flex-wrap: wrap; }
+.tableos-statline { display: grid; grid-template-columns: auto 1fr auto 1fr auto 1fr; gap: 5px 9px; align-items: baseline; margin-top: 14px; color: #94a3b8; }
+.tableos-statline strong { font-size: 20px; color: #5eead4; }
+.tableos-stack { display: grid; gap: 10px; }
+.tableos-empty { color: #64748b !important; padding: 18px 4px; text-align: center; }
+.tableos-participants { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.tableos-person { --person: #14b8a6; display: grid; grid-template-columns: 10px 1fr auto auto; align-items: center; gap: 8px; padding: 8px; border-radius: 12px; background: rgba(2, 6, 23, .34); }
+.tableos-person small { color: #64748b; font-size: 10px; }
+.tableos-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--person); }
+.tableos-module, .tableos-team, .tableos-role { padding: 12px; border-radius: 13px; background: rgba(2, 6, 23, .34); border: 1px solid rgba(148, 163, 184, .12); }
+.tableos-module-head { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(100px, auto) minmax(82px, auto) auto; gap: 8px; align-items: end; }
+.tableos-module-head > input:first-child { font-weight: 800; color: #f8fafc; }
+.tableos-counter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin-top: 10px; }
+.tableos-counter { padding: 10px; border-radius: 11px; background: #0f172a; border: 1px solid rgba(148, 163, 184, .12); }
+.tableos-counter > div { display: grid; grid-template-columns: 36px 1fr 36px; gap: 5px; align-items: center; margin-bottom: 7px; }
+.tableos-counter button { height: 34px; border: 1px solid rgba(148, 163, 184, .25); background: #111827; color: #e2e8f0; border-radius: 8px; font-size: 18px; cursor: pointer; }
+.tableos-counter strong { text-align: center; font-size: 20px; color: #f8fafc; }
+.tableos-phase-controls { display: flex; gap: 8px; margin-bottom: 10px; }
+.tableos-phase-list { display: grid; gap: 7px; }
+.tableos-phase { display: grid; grid-template-columns: 38px 1fr auto; gap: 8px; align-items: center; padding: 9px; border: 1px solid rgba(148, 163, 184, .12); border-radius: 12px; }
+.tableos-phase.active { border-color: rgba(45, 212, 191, .6); background: rgba(20, 184, 166, .08); }
+.tableos-phase > div { display: grid; grid-template-columns: minmax(120px, .7fr) minmax(150px, 1fr); gap: 7px; }
+.tableos-phase-index { width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(148, 163, 184, .26); background: #111827; color: #94a3b8; font-weight: 800; cursor: pointer; }
+.tableos-phase.active .tableos-phase-index { background: #0f766e; color: white; border-color: #2dd4bf; }
+.tableos-team { margin-bottom: 9px; }
+.tableos-team .tableos-module-head { grid-template-columns: 1fr auto; }
+.tableos-check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 5px; margin-top: 9px; }
+.tableos-check-grid label { display: flex; gap: 7px; align-items: center; padding: 7px 9px; border-radius: 8px; background: #0f172a; color: #cbd5e1; }
+.tableos-check-grid input, .tableos-switch input, .tableos-form-grid .checkbox input, .tableos-score-config .checkbox input, .tableos-flag-list input[type="checkbox"] { width: auto; }
+.tableos-role strong { display: block; color: #f8fafc; margin-bottom: 9px; }
+.tableos-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.tableos-form-grid .wide { grid-column: 1 / -1; }
+.tableos-form-grid .checkbox { display: flex; gap: 6px; align-items: center; color: #94a3b8; }
+.tableos-role .tableos-inline-actions { margin-top: 9px; }
+.tableos-help { margin-top: -4px; font-size: 12px; }
+.tableos-score-config { display: grid; gap: 6px; margin-bottom: 12px; }
+.tableos-score-config article { display: grid; grid-template-columns: 1.2fr .8fr 1.5fr 64px 120px 34px; gap: 6px; align-items: center; }
+.tableos-score-config .checkbox { display: flex; align-items: center; gap: 5px; color: #94a3b8; font-size: 11px; }
+.tableos-score-table { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 9px; }
+.tableos-score-table > article { border: 1px solid rgba(148, 163, 184, .12); border-radius: 12px; padding: 10px; background: rgba(2, 6, 23, .34); }
+.tableos-score-table header { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.tableos-score-table header span { color: #94a3b8; }
+.tableos-score-table header b { color: #5eead4; font-size: 18px; }
+.tableos-score-values { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.tableos-score-values output { display: block; min-height: 40px; color: #f8fafc; font-weight: 800; }
+.tableos-switch { display: flex; align-items: center; gap: 7px; color: #cbd5e1; }
+.campaign-form textarea { resize: vertical; }
+.tableos-flag-list { display: grid; gap: 6px; }
+.tableos-flag-list > div { display: grid; grid-template-columns: 1fr auto; gap: 7px; align-items: center; }
+.tableos-flag-list label { display: grid; grid-template-columns: auto 1fr; gap: 7px; align-items: center; }
+.tableos-footer { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 14px 2px 2px; color: #64748b; font-size: 12px; }
+.tableos-toast { position: sticky; bottom: 10px; width: fit-content; max-width: 80%; margin: 10px auto 0; padding: 9px 14px; border-radius: 999px; background: #134e4a; color: #ccfbf1; box-shadow: 0 8px 30px rgba(0, 0, 0, .35); font-weight: 700; }
+.tableos-secret { position: fixed; inset: 0; z-index: 230; display: grid; place-items: center; padding: 24px; background: #020617; }
+.tableos-secret > div { width: min(480px, 100%); text-align: center; }
+.tableos-secret h3 { font-size: 30px; margin: 6px 0; }
+.tableos-secret-warning { color: #94a3b8; }
+.tableos-secret-role { margin: 22px 0; padding: 28px 20px; border: 1px solid rgba(45, 212, 191, .35); border-radius: 18px; background: rgba(15, 118, 110, .12); }
+.tableos-secret-role strong { display: block; font-size: clamp(28px, 7vw, 48px); color: #f8fafc; }
+.tableos-secret-role span { display: inline-block; margin-top: 10px; padding: 5px 10px; border-radius: 999px; background: rgba(94, 234, 212, .1); color: #99f6e4; }
+.tableos-secret-role p { margin-top: 18px; color: #cbd5e1; white-space: pre-wrap; }
+
+@media (max-width: 760px) {
+  .tableos-backdrop { padding: 0; align-items: stretch; }
+  .tableos-sheet { max-height: 100dvh; min-height: 100dvh; border-radius: 0; border-left: 0; border-right: 0; padding: 16px 12px max(16px, env(safe-area-inset-bottom)); }
+  .tableos-grid.two { grid-template-columns: 1fr; }
+  .tableos-toolbar .tableos-btn { flex: 1 1 auto; }
+  .tableos-module-head { grid-template-columns: 1fr 110px auto; }
+  .tableos-module-head > label { grid-column: 1 / 3; }
+  .tableos-phase > div { grid-template-columns: 1fr; }
+  .tableos-score-config article { grid-template-columns: 1fr 1fr 36px; padding: 8px; border: 1px solid rgba(148, 163, 184, .12); border-radius: 10px; }
+  .tableos-score-config article > :nth-child(3) { grid-column: 1 / 3; }
+  .tableos-score-config article > :nth-child(5) { grid-column: 1 / 3; }
+  .tableos-form-grid { grid-template-columns: 1fr; }
+  .tableos-form-grid .wide { grid-column: auto; }
+  .tableos-footer { align-items: flex-start; flex-direction: column; }
+  #tableos-launcher { bottom: max(70px, calc(env(safe-area-inset-bottom) + 60px)); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  #tableos-launcher, .tableos-btn, .tableos-nav button { transition: transform .15s ease, border-color .15s ease, background .15s ease; }
+  #tableos-launcher:active, .tableos-btn:active { transform: scale(.97); }
+}
