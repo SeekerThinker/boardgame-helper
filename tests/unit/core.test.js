@@ -6,7 +6,7 @@ import {
   startTimer, pauseTimer, reconcileTimer, adjustTimer, setActivePlayer,
   currentTimerSeconds, rollDice, shuffle, makeTeams, addPlayer, removePlayer,
   addScoreField, prepareRematch, nextRound, roundScoreValue, chooseFirstPlayer,
-  shufflePlayerOrder, movePlayer, setPlayerColor, activePlayer
+  shufflePlayerOrder, movePlayer, setPlayerColor, activePlayer, replaceScoresWithTotals
 } from '../../src/core.js';
 
 function deterministicCrypto(values) {
@@ -144,6 +144,30 @@ test('score effects, quick adjustment, and undo are consistent', () => {
   assert.equal(change.next, 15);
   assert.equal(player.score, 7);
   assert.equal(round.scores[player.id].vp, 10);
+});
+
+test('final-score bridge replaces base score data with exact signed totals', () => {
+  const state = createDefaultState();
+  const [a, b, c, d] = state.players;
+  ensureRound(state, 1);
+  setRoundScore(state, 1, a.id, 'vp', 99);
+  const applied = replaceScoresWithTotals(state, [
+    { playerId: a.id, total: 13.5 },
+    { playerId: b.id, total: -4.25 },
+    { playerId: c.id, total: 0 },
+    { playerId: d.id, total: 7 }
+  ], { positiveLabel: 'Advanced score', negativeLabel: 'Advanced deduction' });
+  assert.equal(applied, true);
+  assert.deepEqual(state.score.fields.map(field => field.effect), [1, -1]);
+  assert.equal(a.score, 13.5);
+  assert.equal(b.score, -4.25);
+  assert.equal(c.score, 0);
+  assert.equal(d.score, 7);
+  assert.equal(state.score.history.length, 0);
+  assert.equal(state.score.undoStack.length, 0);
+  const snapshot = JSON.stringify(state.score);
+  assert.equal(replaceScoresWithTotals(state, [{ playerId: a.id, total: 1 }]), false, 'partial mappings are rejected');
+  assert.equal(JSON.stringify(state.score), snapshot, 'invalid bridge payloads do not mutate scoring');
 });
 
 test('preset replacement creates the correct low-score model', () => {

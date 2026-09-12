@@ -7,7 +7,7 @@ import {
   rankedPlayers, totalScore, targetReached, roundTotal, removePlayer, addPlayer,
   addScoreField, removeScoreField, rollDice, flipCoin, chooseFirstPlayer,
   shufflePlayerOrder, applyShuffledOrder, makeTeams, addToolHistory, clamp, prepareRematch,
-  movePlayer, setPlayerColor
+  movePlayer, setPlayerColor, replaceScoresWithTotals
 } from './core.js';
 import { t, fieldName, playerName, formatClock, formatDateTime, signedNumber } from './i18n.js';
 import {
@@ -1156,6 +1156,19 @@ document.addEventListener('keydown', event => {
   if (event.shiftKey && (active === first || !sheet.contains(active))) { event.preventDefault(); last.focus({ preventScroll: true }); }
   else if (!event.shiftKey && active === last) { event.preventDefault(); first.focus({ preventScroll: true }); }
 });
+
+function applyTableOsFinalScores(event) {
+  const detail = event?.detail && typeof event.detail === 'object' ? event.detail : {};
+  const applied = replaceScoresWithTotals(state, detail.scores, {
+    positiveLabel: detail.positiveLabel,
+    negativeLabel: detail.negativeLabel
+  });
+  if (!applied) return;
+  state.activeTool = 'summary';
+  render();
+}
+
+document.addEventListener('tableos:use-final-scores', applyTableOsFinalScores);
 
 setSoundOn(state.settings.soundOn);
 setAudioLocale(state.locale);

@@ -54,6 +54,11 @@ test('entries are normalized with safe bounds and fallbacks', () => {
   assert.equal(broken.players[0].rank, 1);
 });
 
+test('archive preserves fractional final scores', () => {
+  const entry = normalizeArchiveEntry({ ...sampleGame, players: [{ name: 'Alice', color: '#f97316', score: 13.75, rank: 1 }] });
+  assert.equal(entry.players[0].score, 13.75);
+});
+
 test('save prepends, dedupes by id, and persists to storage', () => {
   const storage = fakeStorage();
   saveGameToArchive({ ...sampleGame, id: 'game_first' }, storage);

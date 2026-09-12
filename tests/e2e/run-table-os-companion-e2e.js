@@ -161,6 +161,50 @@ async function runPrimaryFlow() {
   await context.close();
 }
 
+async function runFinalScoreBridgeFlow() {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'zh-CN' });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('dialog', dialog => dialog.accept());
+
+  await page.goto(url, { waitUntil: 'networkidle' });
+  await page.evaluate(() => localStorage.clear());
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.locator('[data-action="start-session"]').click();
+  await openTableOs(page);
+  await page.getByRole('button', { name: '编辑配置', exact: true }).click();
+  await page.locator('[data-os-template]').selectOption('engine-score');
+  await page.getByRole('button', { name: '应用模板', exact: true }).click();
+  await page.getByRole('button', { name: '计分表', exact: true }).click();
+
+  const inputs = page.locator('[data-os-score-value]');
+  for (const [index, value] of [[0, '12.5'], [1, '4'], [2, '0'], [3, '3'], [4, '1.25'], [5, '0'], [6, '0'], [7, '5.5']]) {
+    await inputs.nth(index).fill(value);
+    await inputs.nth(index).blur();
+  }
+
+  const bridge = page.locator('[data-tableos-companion-action="final-score"]');
+  await bridge.waitFor({ state: 'visible' });
+  await bridge.click();
+  await page.locator('#tableos-root').waitFor({ state: 'detached' });
+
+  const main = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-state-v2')));
+  assert.equal(main.activeTool, 'summary', 'bridge lands on the mature main summary');
+  assert.equal(main.players[0].score, 13.5, 'positive advanced total is preserved exactly');
+  assert.equal(main.players[1].score, -4.25, 'negative advanced total is preserved exactly');
+  assert.deepEqual(main.score.fields.map(field => field.effect), [1, -1], 'negative totals use an explicit deduction field');
+  assert.ok((await page.locator('[data-tab="summary"]').getAttribute('class') || '').includes('active'));
+
+  await page.locator('[data-action="finish-session"]').click();
+  const archive = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-archive-v1')));
+  assert.equal(archive[0].players.find(player => player.name === '玩家 1')?.score, 13.5, 'archive keeps fractional Table OS final scores');
+  assert.equal(archive[0].players.find(player => player.name === '玩家 2')?.score, -4.25, 'archive keeps negative fractional Table OS final scores');
+  assert.equal(errors.length, 0, `Table OS final-score bridge console errors: ${errors.join(' | ')}`);
+  await context.close();
+}
+
 async function rematchMainGame(page) {
   await page.getByRole('tab', { name: 'Results', exact: true }).click();
   await page.getByRole('button', { name: 'Finish Game', exact: true }).click();
@@ -307,6 +351,7 @@ async function run() {
 
   browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
   await runPrimaryFlow();
+  await runFinalScoreBridgeFlow();
   await runQuietLifecycleFlow();
   await runSessionLifecycleFlow();
   await runTouchTargetSmoke();
@@ -317,7 +362,7 @@ async function run() {
     checks: [
       'live main-game context', 'timer continuity', 'roster-drift detection', 'one-tap roster sync',
       'tracker undo', 'direct-value undo', 'exact clamped tracker undo', 'exact phase-boundary undo',
-      'ordinary phase undo', 'main-timer bridge', 'contextual accessibility labels',
+      'ordinary phase undo', 'main-timer bridge', 'final-score bridge', 'contextual accessibility labels',
       'quiet empty rematch', 'new-session detection', 'keep-current lifecycle choice',
       'safe rematch reset', 'campaign tracker persistence across rematch', 'transient state reset across rematch',
       '44px live touch targets', '320px overflow'

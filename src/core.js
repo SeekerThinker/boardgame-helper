@@ -614,6 +614,36 @@ export function recalculateScores(state) {
   });
 }
 
+export function replaceScoresWithTotals(state, entries, { positiveLabel = 'Table OS score', negativeLabel = 'Table OS deduction' } = {}) {
+  if (!Array.isArray(entries) || entries.length !== state.players.length) return false;
+  const validPlayers = new Set(state.players.map(player => player.id));
+  const byPlayer = new Map();
+  for (const entry of entries) {
+    const playerId = String(entry?.playerId ?? '');
+    const total = Number(entry?.total);
+    if (!validPlayers.has(playerId) || byPlayer.has(playerId) || !Number.isFinite(total) || Math.abs(total) > 999999) return false;
+    byPlayer.set(playerId, Math.round(total * 100) / 100);
+  }
+  if (state.players.some(player => !byPlayer.has(player.id))) return false;
+
+  const positive = { id: 'table_os_total', nameKey: '', customName: String(positiveLabel || 'Table OS score').slice(0, 20), step: 1, effect: 1 };
+  const hasNegative = state.players.some(player => byPlayer.get(player.id) < 0);
+  const negative = { id: 'table_os_deduction', nameKey: '', customName: String(negativeLabel || 'Table OS deduction').slice(0, 20), step: 1, effect: -1 };
+  state.score.fields = hasNegative ? [positive, negative] : [positive];
+  state.score.rounds = [];
+  state.score.history = [];
+  state.score.undoStack = [];
+  const round = ensureRound(state, state.timer.round);
+  state.players.forEach(player => {
+    const total = byPlayer.get(player.id);
+    round.scores[player.id][positive.id] = Math.max(0, total);
+    if (hasNegative) round.scores[player.id][negative.id] = Math.max(0, -total);
+  });
+  round.updatedAt = new Date().toISOString();
+  recalculateScores(state);
+  return true;
+}
+
 export function totalScore(state, player) {
   return Number(player?.score || 0);
 }

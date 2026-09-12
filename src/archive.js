@@ -40,6 +40,12 @@ function safeColor(value) {
   return /^#[0-9a-f]{6}$/i.test(value || '') ? value : '#64748b';
 }
 
+function safeScore(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 0;
+  return Math.round(Math.min(1000000, Math.max(-1000000, number)) * 100) / 100;
+}
+
 export function normalizeArchiveEntry(input) {
   const source = input && typeof input === 'object' ? input : {};
   const players = Array.isArray(source.players) ? source.players.slice(0, 16) : [];
@@ -57,7 +63,7 @@ export function normalizeArchiveEntry(input) {
     players: players.map(player => ({
       name: String(player?.name ?? '').slice(0, 40),
       color: safeColor(player?.color),
-      score: clampInt(player?.score, -1000000, 1000000, 0),
+      score: safeScore(player?.score),
       rank: clampInt(player?.rank, 1, 9999, 1)
     })),
     fields: fields.filter(field => field && typeof field === 'object').map(field => ({

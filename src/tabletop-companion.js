@@ -1,5 +1,5 @@
 import { STORAGE_KEY } from './core.js';
-import { TABLE_OS_STORAGE_KEY } from './tabletop-core.js';
+import { TABLE_OS_STORAGE_KEY, scoreCardForParticipant } from './tabletop-core.js';
 
 const COMPANION_STORAGE_KEY = 'board-game-assistant-table-os-companion-v1';
 
@@ -11,7 +11,8 @@ const I18N = {
     increase: '增加', decrease: '减少', setValue: '设置', switchPhase: '切换到阶段',
     rosterChanged: '主对局玩家已变更', syncRoster: '同步玩家', rosterSynced: '已同步主对局玩家。',
     newSessionDetected: '检测到新的主牌局', startNewSession: '开始新一局', keepTableState: '保留当前桌面',
-    newSessionStarted: '已为新牌局重置本局状态。', tableStateKept: '已保留当前桌面状态。'
+    newSessionStarted: '已为新牌局重置本局状态。', tableStateKept: '已保留当前桌面状态。',
+    useFinalScores: '设为最终成绩', finalScoresConfirm: '将 Table OS 的最终分数同步到主应用，并替换当前主应用计分数据？'
   },
   en: {
     mainGame: 'Main game', round: 'Round {value}', running: 'Running', paused: 'Paused', openFlow: 'Main timer',
@@ -20,7 +21,8 @@ const I18N = {
     increase: 'Increase', decrease: 'Decrease', setValue: 'Set', switchPhase: 'Switch to phase',
     rosterChanged: 'Main-game players changed', syncRoster: 'Sync players', rosterSynced: 'Main-game players synced.',
     newSessionDetected: 'New main game detected', startNewSession: 'Start new table', keepTableState: 'Keep table state',
-    newSessionStarted: 'Session state reset for the new game.', tableStateKept: 'Current table state kept.'
+    newSessionStarted: 'Session state reset for the new game.', tableStateKept: 'Current table state kept.',
+    useFinalScores: 'Use as final scores', finalScoresConfirm: 'Send the Table OS totals to the main app and replace its current score data?'
   }
 };
 
@@ -164,6 +166,40 @@ function rosterNeedsSync(game) {
     if (/^#[0-9a-f]{6}$/i.test(gameColor) && String(participant.color || '').toLowerCase() !== gameColor.toLowerCase()) return true;
     return false;
   });
+}
+
+function finalScorePayload(game) {
+  const table = readTableOsState();
+  const players = Array.isArray(game?.players) ? game.players : [];
+  const participants = Array.isArray(table?.participants) ? table.participants : [];
+  const fields = Array.isArray(table?.scoreSheet?.fields) ? table.scoreSheet.fields : [];
+  const rows = table?.scoreSheet?.values && typeof table.scoreSheet.values === 'object'
+    ? Object.values(table.scoreSheet.values) : [];
+  if (!players.length || !fields.length || game?.session?.status === 'finished') return null;
+  if (!rows.some(values => values && typeof values === 'object' && Object.keys(values).length)) return null;
+
+  const bySource = new Map();
+  for (const participant of participants) {
+    if (!participant?.sourcePlayerId) continue;
+    const sourceId = String(participant.sourcePlayerId);
+    if (bySource.has(sourceId)) return null;
+    bySource.set(sourceId, participant);
+  }
+
+  const scores = [];
+  for (const player of players) {
+    const participant = bySource.get(String(player?.id ?? ''));
+    if (!participant) return null;
+    const card = scoreCardForParticipant(table, participant.id);
+    const total = Number(card?.total);
+    if (!Number.isFinite(total) || Math.abs(total) > 999999) return null;
+    scores.push({ playerId: String(player.id), total: Math.round(total * 100) / 100 });
+  }
+  return {
+    scores,
+    positiveLabel: locale() === 'en' ? 'Table OS score' : 'Table OS 得分',
+    negativeLabel: locale() === 'en' ? 'Table OS deduction' : 'Table OS 扣分'
+  };
 }
 
 function mainGameContext() {
@@ -373,6 +409,14 @@ function openMainFlow() {
   queueMicrotask(() => document.querySelector('[data-tab="flow"]')?.click());
 }
 
+function transferFinalScores() {
+  const payload = finalScorePayload(readGameState());
+  if (!payload || !confirm(tr('finalScoresConfirm'))) return false;
+  document.querySelector('.tableos-sheet [data-os-action="close"]')?.click();
+  queueMicrotask(() => document.dispatchEvent(new CustomEvent('tableos:use-final-scores', { detail: payload })));
+  return true;
+}
+
 function enhanceAccessibility(sheet) {
   sheet.querySelectorAll('.tableos-module').forEach(module => {
     const trackerName = module.querySelector('.tableos-live-head strong')?.textContent?.trim()
@@ -405,7 +449,7 @@ function enhanceAccessibility(sheet) {
   });
 }
 
-function companionMarkup(context) {
+function companionMarkup(context, finalScores = null) {
   const alert = context?.newSession ? tr('newSessionDetected') : (context?.rosterDrift ? tr('rosterChanged') : '');
   const contextMarkup = context ? `<div class="tableos-companion-main" data-tableos-main-context>
       <span>${esc(tr('mainGame'))}</span><strong>${esc(context.session)}</strong>
@@ -414,7 +458,7 @@ function companionMarkup(context) {
   const sessionActions = context?.newSession
     ? `<button type="button" class="tableos-btn primary" data-tableos-companion-action="new-session">${esc(tr('startNewSession'))}</button><button type="button" class="tableos-btn" data-tableos-companion-action="keep-session">${esc(tr('keepTableState'))}</button>`
     : (context?.rosterDrift ? `<button type="button" class="tableos-btn" data-tableos-companion-action="sync">${esc(tr('syncRoster'))}</button>` : '');
-  const actions = `${lastUndo ? `<button type="button" class="tableos-btn" data-tableos-companion-action="undo" title="${esc(lastUndo.label)}">↶ ${esc(tr('undo'))}</button>` : ''}${sessionActions}${context ? `<button type="button" class="tableos-btn" data-tableos-companion-action="flow">${esc(tr('openFlow'))}</button>` : ''}`;
+  const actions = `${lastUndo ? `<button type="button" class="tableos-btn" data-tableos-companion-action="undo" title="${esc(lastUndo.label)}">↶ ${esc(tr('undo'))}</button>` : ''}${sessionActions}${finalScores ? `<button type="button" class="tableos-btn primary" data-tableos-companion-action="final-score">${esc(tr('useFinalScores'))}</button>` : ''}${context ? `<button type="button" class="tableos-btn" data-tableos-companion-action="flow">${esc(tr('openFlow'))}</button>` : ''}`;
   return `${contextMarkup}<div class="tableos-companion-actions">${actions}</div>${notice ? `<span class="tableos-companion-notice" role="status">${esc(notice)}</span>` : ''}`;
 }
 
@@ -430,6 +474,9 @@ function refreshCompanion() {
   enhanceAccessibility(sheet);
   const context = mainGameContext();
   if (context?.newSession) lastUndo = null;
+  const section = activeSection();
+  const finalScores = context && !context.newSession && !context.rosterDrift && section === 'score'
+    ? finalScorePayload(readGameState()) : null;
   let bar = sheet.querySelector('.tableos-companion');
   if (!context && !lastUndo && !notice) {
     bar?.remove();
@@ -441,10 +488,10 @@ function refreshCompanion() {
     const nav = sheet.querySelector('.tableos-nav');
     if (nav) nav.before(bar); else sheet.querySelector('.tableos-content')?.before(bar);
   }
-  const signature = JSON.stringify({ context, undo: lastUndo?.label || '', notice, lang: locale(), playing: inPlayMode() });
+  const signature = JSON.stringify({ context, undo: lastUndo?.label || '', notice, lang: locale(), playing: inPlayMode(), section, finalScores: finalScores?.scores || null });
   if (bar.dataset.signature !== signature) {
     bar.dataset.signature = signature;
-    bar.innerHTML = companionMarkup(context);
+    bar.innerHTML = companionMarkup(context, finalScores);
   }
 }
 
@@ -489,6 +536,7 @@ document.addEventListener('click', event => {
     if (action === 'sync') syncRosterFromMain();
     if (action === 'new-session') startNewTableSession();
     if (action === 'keep-session') keepCurrentTableState();
+    if (action === 'final-score') transferFinalScores();
     if (action === 'flow') openMainFlow();
     return;
   }
