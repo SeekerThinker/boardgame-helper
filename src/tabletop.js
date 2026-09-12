@@ -71,6 +71,8 @@ let revealedParticipantId = null;
 let revealArmed = false;
 let toast = '';
 let toastTimer = null;
+let roleRevealReturnId = null;
+const FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input:not([disabled]):not([type=\"hidden\"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex=\"-1\"])';
 
 function locale() {
   return document.documentElement.lang?.toLowerCase().startsWith('en') ? 'en' : 'zh';
@@ -176,7 +178,12 @@ function renderLauncher() {
     launcher = document.createElement('button');
     launcher.id = 'tableos-launcher';
     launcher.type = 'button';
-    launcher.addEventListener('click', () => { isOpen = true; initializeParticipants(); render(); });
+    launcher.addEventListener('click', () => {
+      isOpen = true;
+      initializeParticipants();
+      render();
+      focusTableOsDialog();
+    });
     document.body.append(launcher);
   }
   launcher.textContent = tr('launcher');
@@ -206,6 +213,86 @@ function restoreRenderContext(context) {
   if (next instanceof HTMLElement) next.focus({ preventScroll: true });
 }
 
+function visibleFocusableElements(container) {
+  if (!(container instanceof HTMLElement)) return [];
+  return [...container.querySelectorAll(FOCUSABLE_SELECTOR)].filter(element =>
+    element instanceof HTMLElement && element.getClientRects().length > 0 && !element.hasAttribute('hidden')
+  );
+}
+
+function focusElement(element) {
+  if (element instanceof HTMLElement) element.focus({ preventScroll: true });
+}
+
+function focusTableOsDialog() {
+  const dialog = document.querySelector('.tableos-sheet[role="dialog"]');
+  if (!(dialog instanceof HTMLElement)) return;
+  const focusable = visibleFocusableElements(dialog);
+  focusElement(dialog.querySelector('[data-os-action="close"]') || focusable[0] || dialog);
+}
+
+function focusRoleReveal() {
+  const dialog = document.querySelector('.tableos-secret[role="dialog"]');
+  if (!(dialog instanceof HTMLElement)) return;
+  focusElement(visibleFocusableElements(dialog)[0] || dialog);
+}
+
+function focusRoleTrigger(participantId) {
+  if (!participantId) return;
+  focusElement(document.querySelector(`[data-os-role-reveal="${CSS.escape(participantId)}"]`));
+}
+
+function closeRoleReveal() {
+  const participantId = roleRevealReturnId || revealedParticipantId;
+  revealedParticipantId = null;
+  revealArmed = false;
+  roleRevealReturnId = null;
+  render();
+  focusRoleTrigger(participantId);
+}
+
+function closeTableOs() {
+  isOpen = false;
+  revealedParticipantId = null;
+  revealArmed = false;
+  roleRevealReturnId = null;
+  render();
+  focusElement(document.getElementById('tableos-launcher'));
+}
+
+function trapModalFocus(event) {
+  if (event.key !== 'Tab' || !isOpen) return false;
+  const dialog = revealedParticipantId
+    ? document.querySelector('.tableos-secret[role="dialog"]')
+    : document.querySelector('.tableos-sheet[role="dialog"]');
+  if (!(dialog instanceof HTMLElement)) return false;
+  const focusable = visibleFocusableElements(dialog);
+  if (!focusable.length) {
+    event.preventDefault();
+    focusElement(dialog);
+    return true;
+  }
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  const active = document.activeElement;
+  if (!dialog.contains(active)) {
+    event.preventDefault();
+    focusElement(event.shiftKey ? last : first);
+    return true;
+  }
+  if (event.shiftKey && active === first) {
+    event.preventDefault();
+    focusElement(last);
+    return true;
+  }
+  if (!event.shiftKey && active === last) {
+    event.preventDefault();
+    focusElement(first);
+    return true;
+  }
+  return false;
+}
+
 function render() {
   renderLauncher();
   const old = document.getElementById('tableos-root');
@@ -233,7 +320,7 @@ function renderShell() {
   if (!sections.includes(state.ui.activeSection)) state.ui.activeSection = 'overview';
   return `
     <div class="tableos-backdrop" data-os-action="close">
-      <section class="tableos-sheet ${state.ui.mode === 'edit' ? 'is-editing' : 'is-playing'}" role="dialog" aria-modal="true" aria-labelledby="tableos-title">
+      <section class="tableos-sheet ${state.ui.mode === 'edit' ? 'is-editing' : 'is-playing'}" role="dialog" aria-modal="true" aria-labelledby="tableos-title" tabindex="-1">
         <header class="tableos-header">
           <div><p class="tableos-kicker">TABLE OS</p><h2 id="tableos-title">${esc(tr('title'))}</h2><p>${esc(tr('subtitle'))}</p></div>
           <div class="tableos-header-actions">${renderModeToggle()}<button class="tableos-icon" type="button" data-os-action="close" aria-label="${attr(tr('close'))}">×</button></div>
@@ -368,8 +455,8 @@ function renderRoleReveal(participantId) {
   const participant = participantById(participantId);
   if (!participant) return '';
   const role = roleForParticipant(state, participantId);
-  if (!revealArmed) return `<div class="tableos-secret" role="dialog" aria-modal="true" aria-label="${attr(tr('revealFor'))}"><div><p>${esc(tr('revealFor'))}</p><h3>${esc(participant.name)}</h3><p class="tableos-secret-warning">${esc(tr('passDevice'))}</p><button class="tableos-btn primary wide" type="button" data-os-action="reveal-role-now">${esc(tr('revealNow'))}</button><button class="tableos-btn wide" type="button" data-os-action="hide-role">${esc(tr('close'))}</button></div></div>`;
-  return `<div class="tableos-secret" role="dialog" aria-modal="true" aria-label="${attr(tr('revealFor'))}"><div><p>${esc(tr('revealFor'))}</p><h3>${esc(participant.name)}</h3><div class="tableos-secret-role"><strong>${esc(role?.role || tr('noRole'))}</strong>${role?.faction ? `<span>${esc(role.faction)}</span>` : ''}</div><p class="tableos-secret-warning">${esc(tr('moderatorNoteHidden'))}</p><button class="tableos-btn primary wide" type="button" data-os-action="hide-role">${esc(tr('hide'))}</button></div></div>`;
+  if (!revealArmed) return `<div class="tableos-secret" role="dialog" aria-modal="true" aria-label="${attr(tr('revealFor'))}" tabindex="-1"><div><p>${esc(tr('revealFor'))}</p><h3>${esc(participant.name)}</h3><p class="tableos-secret-warning">${esc(tr('passDevice'))}</p><button class="tableos-btn primary wide" type="button" data-os-action="reveal-role-now">${esc(tr('revealNow'))}</button><button class="tableos-btn wide" type="button" data-os-action="hide-role">${esc(tr('close'))}</button></div></div>`;
+  return `<div class="tableos-secret" role="dialog" aria-modal="true" aria-label="${attr(tr('revealFor'))}" tabindex="-1"><div><p>${esc(tr('revealFor'))}</p><h3>${esc(participant.name)}</h3><div class="tableos-secret-role"><strong>${esc(role?.role || tr('noRole'))}</strong>${role?.faction ? `<span>${esc(role.faction)}</span>` : ''}</div><p class="tableos-secret-warning">${esc(tr('moderatorNoteHidden'))}</p><button class="tableos-btn primary wide" type="button" data-os-action="hide-role">${esc(tr('hide'))}</button></div></div>`;
 }
 
 function saveAndRender() {
@@ -452,9 +539,9 @@ function bindEvents() {
     const target = event.target instanceof Element ? event.target.closest('[data-os-action],[data-os-mode],[data-os-section],[data-os-quick-template],[data-os-remove-participant],[data-os-tracker-delta],[data-os-remove-tracker],[data-os-phase-active],[data-os-remove-phase],[data-os-remove-team],[data-os-role-reveal],[data-os-role-clear],[data-os-remove-score],[data-os-flag-toggle],[data-os-flag-remove]') : null;
     if (!target) return;
     const d = target.dataset;
-    if (d.osAction === 'close') { if (event.target.closest('.tableos-sheet') && !event.target.closest('[data-os-action="close"]')) return; isOpen = false; revealedParticipantId = null; revealArmed = false; render(); return; }
-    if (d.osAction === 'hide-role') { revealedParticipantId = null; revealArmed = false; render(); return; }
-    if (d.osAction === 'reveal-role-now') { revealArmed = true; render(); return; }
+    if (d.osAction === 'close') { if (event.target.closest('.tableos-sheet') && !event.target.closest('[data-os-action="close"]')) return; closeTableOs(); return; }
+    if (d.osAction === 'hide-role') { closeRoleReveal(); return; }
+    if (d.osAction === 'reveal-role-now') { revealArmed = true; render(); focusRoleReveal(); return; }
     if (d.osMode) { state.ui.mode = d.osMode === 'edit' ? 'edit' : 'play'; state.ui.activeSection = 'overview'; saveAndRender(); return; }
     if (d.osSection) { state.ui.activeSection = d.osSection; saveAndRender(); return; }
     if (d.osQuickTemplate) { applyTemplate(d.osQuickTemplate, false); return; }
@@ -477,7 +564,7 @@ function bindEvents() {
     if (d.osRemovePhase) { removePhase(state, d.osRemovePhase); persist(); render(); return; }
     if (d.osAction === 'add-team') { if (!addTeam(state, tr('customTeam'))) flash(tr('limit')); else { persist(); render(); } return; }
     if (d.osRemoveTeam) { removeTeam(state, d.osRemoveTeam); persist(); render(); return; }
-    if (d.osRoleReveal) { revealedParticipantId = d.osRoleReveal; revealArmed = false; render(); return; }
+    if (d.osRoleReveal) { roleRevealReturnId = d.osRoleReveal; revealedParticipantId = d.osRoleReveal; revealArmed = false; render(); focusRoleReveal(); return; }
     if (d.osRoleClear) { clearRole(state, d.osRoleClear); persist(); render(); return; }
     if (d.osAction === 'add-score-field') { if (!addScoreSheetField(state, { name: tr('customField'), key: `field_${state.scoreSheet.fields.length + 1}` })) flash(tr('limit')); else { persist(); render(); } return; }
     if (d.osAction === 'add-formula-field') { if (!addScoreSheetField(state, { name: tr('customFormula'), key: `calc_${state.scoreSheet.fields.length + 1}`, kind: 'formula', formula: '', includeInTotal: false })) flash(tr('limit')); else { persist(); render(); } return; }
@@ -520,8 +607,9 @@ function bindEvents() {
   });
 
   document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && revealedParticipantId) { revealedParticipantId = null; revealArmed = false; render(); return; }
-    if (event.key === 'Escape' && isOpen) { isOpen = false; render(); }
+    if (event.key === 'Tab' && isOpen) { trapModalFocus(event); return; }
+    if (event.key === 'Escape' && revealedParticipantId) { event.preventDefault(); closeRoleReveal(); return; }
+    if (event.key === 'Escape' && isOpen) { event.preventDefault(); closeTableOs(); }
   });
 }
 

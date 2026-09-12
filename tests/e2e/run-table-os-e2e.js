@@ -38,6 +38,30 @@ async function assertNoHorizontalOverflow(page, label) {
   assert.ok(metrics.scrollWidth <= metrics.width + 1, `${label} should not horizontally overflow: ${JSON.stringify(metrics)}`);
 }
 
+async function assertFocusTrapped(page, dialogSelector, label) {
+  const focusableSelector = 'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  const count = await page.evaluate(({ dialogSelector, focusableSelector }) => {
+    const dialog = document.querySelector(dialogSelector);
+    if (!(dialog instanceof HTMLElement)) return 0;
+    const items = [...dialog.querySelectorAll(focusableSelector)].filter(element => element instanceof HTMLElement && element.getClientRects().length > 0);
+    items.at(-1)?.focus();
+    return items.length;
+  }, { dialogSelector, focusableSelector });
+  assert.ok(count > 1, `${label} should have multiple focusable controls`);
+  await page.keyboard.press('Tab');
+  assert.equal(await page.evaluate(({ dialogSelector, focusableSelector }) => {
+    const dialog = document.querySelector(dialogSelector);
+    const items = dialog ? [...dialog.querySelectorAll(focusableSelector)].filter(element => element instanceof HTMLElement && element.getClientRects().length > 0) : [];
+    return items.length > 0 && document.activeElement === items[0];
+  }, { dialogSelector, focusableSelector }), true, `${label} should wrap Tab from last to first`);
+  await page.keyboard.press('Shift+Tab');
+  assert.equal(await page.evaluate(({ dialogSelector, focusableSelector }) => {
+    const dialog = document.querySelector(dialogSelector);
+    const items = dialog ? [...dialog.querySelectorAll(focusableSelector)].filter(element => element instanceof HTMLElement && element.getClientRects().length > 0) : [];
+    return items.length > 0 && document.activeElement === items.at(-1);
+  }, { dialogSelector, focusableSelector }), true, `${label} should wrap Shift+Tab from first to last`);
+}
+
 async function runPrimaryFlow() {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'zh-CN', acceptDownloads: true });
   const page = await context.newPage();
@@ -53,7 +77,10 @@ async function runPrimaryFlow() {
   const launcher = page.getByRole('button', { name: '高级桌游助手' });
   assert.ok(await launcher.isVisible(), 'Table OS launcher is always available');
   await launcher.click();
-  assert.ok(await page.getByRole('dialog', { name: '高级桌游助手' }).isVisible());
+  const tableDialog = page.getByRole('dialog', { name: '高级桌游助手' });
+  assert.ok(await tableDialog.isVisible());
+  assert.equal(await tableDialog.evaluate(dialog => dialog.contains(document.activeElement)), true, 'focus enters Table OS when opened');
+  await assertFocusTrapped(page, '.tableos-sheet[role="dialog"]', 'Table OS dialog');
   assert.equal(await page.locator('[data-os-participant-name]').count(), 0, 'play mode does not expose roster edit fields');
   assert.equal(await page.getByRole('button', { name: '编辑配置' }).count(), 1, 'play mode is the default');
   assert.ok(await page.getByText('今天需要什么？', { exact: true }).isVisible(), 'empty workspace starts with purpose-first quick start');
@@ -95,14 +122,19 @@ async function runPrimaryFlow() {
   await firstModeratorNote.fill('主持人机密：夜晚第二个行动'); await firstModeratorNote.blur();
   await page.getByRole('button', { name: '牌局模式' }).click();
   await page.getByRole('button', { name: '团队与身份', exact: true }).click();
-  await page.locator('[data-os-role-reveal]').first().click();
+  const firstRoleReveal = page.locator('[data-os-role-reveal]').first();
+  await firstRoleReveal.click();
+  const secretDialog = page.locator('.tableos-secret[role="dialog"]');
+  assert.equal(await secretDialog.evaluate(dialog => dialog.contains(document.activeElement)), true, 'focus enters private role reveal');
+  await assertFocusTrapped(page, '.tableos-secret[role="dialog"]', 'private role reveal');
   assert.equal(await page.getByText('侦察员', { exact: true }).count(), 0, 'role stays hidden before player confirms identity');
   assert.equal(await page.getByText(/主持人机密/).count(), 0, 'moderator note is absent from the player reveal DOM');
   await page.getByRole('button', { name: '这是我，查看身份' }).click();
   assert.ok(await page.getByText('侦察员', { exact: true }).isVisible());
   assert.ok(await page.getByText('守护者', { exact: true }).isVisible());
   assert.equal(await page.getByText(/主持人机密/).count(), 0, 'moderator note never appears after reveal');
-  await page.getByRole('button', { name: '看完了' }).click();
+  await page.keyboard.press('Escape');
+  assert.equal(await firstRoleReveal.evaluate(element => element === document.activeElement), true, 'closing private reveal returns focus to its trigger');
 
   // Session bridge: recent random teams from the basic toolbox can be adopted without rebuilding them manually.
   await page.evaluate(() => {
@@ -169,7 +201,8 @@ async function runPrimaryFlow() {
   assert.ok(await page.getByText('开启北门', { exact: true }).isVisible());
 
   // English UI follows the main language dynamically.
-  await page.getByRole('button', { name: '关闭' }).click();
+  await page.keyboard.press('Escape');
+  assert.equal(await launcher.evaluate(element => element === document.activeElement), true, 'closing Table OS returns focus to the launcher');
   await page.getByRole('button', { name: '界面语言' }).click();
   assert.equal(await page.getByRole('button', { name: 'Advanced Table Assistant' }).textContent(), 'Table OS');
 
@@ -209,7 +242,7 @@ async function run() {
     event: 'table-os-e2e-summary', status: 'PASS',
     checks: [
       'play/edit separation', 'purpose-first quick start', 'roster sync', 'universal trackers', 'phase engine',
-      'toolbox-team bridge', 'two-stage private role reveal', 'moderator-note isolation', 'formula score sheet', 'unary formula operators',
+      'toolbox-team bridge', 'two-stage private role reveal', 'moderator-note isolation', 'formula score sheet', 'unary formula operators', 'modal focus trap', 'nested reveal focus return', 'launcher focus return',
       'campaign tracker persistence', 'campaign reload persistence', '320px mobile', 'tablet', 'dynamic bilingual UI'
     ]
   }, null, 2));
