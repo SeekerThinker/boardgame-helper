@@ -52,8 +52,9 @@ async function run() {
   await page.locator('[data-os-template]').selectOption('coop-crisis');
   await page.getByRole('button', { name: '应用模板' }).click();
   await page.getByRole('button', { name: '追踪器', exact: true }).click();
-  assert.ok(await page.getByDisplayValue('威胁').isVisible());
-  assert.ok(await page.getByDisplayValue('个人生命').isVisible());
+  const trackerNames = await page.locator('[data-os-tracker-name]').evaluateAll(elements => elements.map(element => element.value));
+  assert.ok(trackerNames.includes('威胁'));
+  assert.ok(trackerNames.includes('个人生命'));
   const threatPlus = page.locator('[data-os-tracker-delta]').filter({ hasText: '+' }).first();
   await threatPlus.click();
   assert.equal(await page.locator('[data-os-tracker-value]').first().inputValue(), '1');
