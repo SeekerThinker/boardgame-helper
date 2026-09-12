@@ -1,0 +1,30 @@
+name: Table OS Focus Migration v3
+
+on:
+  push:
+    branches:
+      - fix/table-os-focus-management-20260912
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: fix/table-os-focus-management-20260912
+      - name: Generate focus changes
+        run: python .github/tableos-focus-migrate.py
+      - name: Commit generated source changes
+        run: |
+          rm .github/tableos-focus-migrate.py
+          rm .github/workflows/tableos-focus-migrate.yml
+          rm .github/workflows/tableos-focus-migrate-v2.yml
+          rm .github/workflows/tableos-focus-migrate-v3.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/tabletop.js tests/e2e/run-table-os-e2e.js .github
+          git commit -m 'fix: contain and restore Table OS focus'
+          git push origin HEAD:fix/table-os-focus-management-20260912
