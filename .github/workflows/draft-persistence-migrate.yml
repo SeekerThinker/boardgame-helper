@@ -1,0 +1,146 @@
+name: Draft Persistence Migration
+
+on:
+  push:
+    branches:
+      - fix/table-os-draft-persistence-20260912
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: fix/table-os-draft-persistence-20260912
+      - name: Preserve active Table OS drafts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          source_path = Path('src/tabletop.js')
+          source = source_path.read_text()
+          old_close = """function closeTableOs() {
+            isOpen = false;
+            revealedParticipantId = null;
+            revealArmed = false;
+            roleRevealReturnId = null;
+            render();
+            focusElement(document.getElementById('tableos-launcher'));
+          }
+          """
+          new_close = """function flushActiveDraft() {
+            const active = document.activeElement;
+            const editable = active instanceof HTMLTextAreaElement
+              || (active instanceof HTMLInputElement && ['text', 'number'].includes(active.type));
+            if (!editable || !active.closest('#tableos-root')) return false;
+            active.dispatchEvent(new Event('change', { bubbles: true }));
+            return true;
+          }
+
+          function closeTableOs() {
+            flushActiveDraft();
+            isOpen = false;
+            revealedParticipantId = null;
+            revealArmed = false;
+            roleRevealReturnId = null;
+            render();
+            focusElement(document.getElementById('tableos-launcher'));
+          }
+          """
+          if old_close not in source:
+              raise SystemExit('closeTableOs marker not found')
+          source = source.replace(old_close, new_close, 1)
+
+          old_tail = """  document.addEventListener('keydown', event => {
+            if (event.key === 'Tab' && isOpen) { trapModalFocus(event); return; }
+            if (event.key === 'Escape' && revealedParticipantId) { event.preventDefault(); closeRoleReveal(); return; }
+            if (event.key === 'Escape' && isOpen) { event.preventDefault(); closeTableOs(); }
+          });
+          }
+          """
+          new_tail = """  document.addEventListener('keydown', event => {
+            if (event.key === 'Tab' && isOpen) { trapModalFocus(event); return; }
+            if (event.key === 'Escape' && revealedParticipantId) { event.preventDefault(); closeRoleReveal(); return; }
+            if (event.key === 'Escape' && isOpen) { event.preventDefault(); closeTableOs(); }
+          });
+
+            window.addEventListener('pagehide', flushActiveDraft);
+            document.addEventListener('visibilitychange', () => {
+              if (document.visibilityState === 'hidden') flushActiveDraft();
+            });
+          }
+          """
+          if old_tail not in source:
+              raise SystemExit('bindEvents tail marker not found')
+          source = source.replace(old_tail, new_tail, 1)
+          source_path.write_text(source)
+
+          test_path = Path('tests/e2e/run-table-os-e2e.js')
+          test = test_path.read_text()
+          unary_marker = """  assert.equal(await page.locator('.tableos-score-table > article').first().locator('output').last().textContent(), '5', 'unary formula syntax works through the live score sheet');
+
+          // Campaign trackers have explicit lifetimes: health resets; experience persists across new scenarios.
+          """
+          unary_replacement = """  assert.equal(await page.locator('.tableos-score-table > article').first().locator('output').last().textContent(), '5', 'unary formula syntax works through the live score sheet');
+
+          // A focused live value is flushed synchronously before page lifecycle interruption, even without blur.
+          const interruptedScore = page.locator('[data-os-score-value]').first();
+          const interruptedScoreKey = await interruptedScore.getAttribute('data-os-score-value');
+          assert.ok(interruptedScoreKey, 'live score input exposes a persistence key');
+          await interruptedScore.fill('21');
+          await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+          assert.equal(await page.evaluate(key => {
+            const [participantId, fieldId] = key.split('|');
+            const stored = JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1'));
+            return Number(stored?.scoreSheet?.values?.[participantId]?.[fieldId]);
+          }, interruptedScoreKey), 21, 'pagehide flushes the active live score draft before blur');
+
+          // Campaign trackers have explicit lifetimes: health resets; experience persists across new scenarios.
+          """
+          if unary_marker not in test:
+              raise SystemExit('unary formula test marker not found')
+          test = test.replace(unary_marker, unary_replacement, 1)
+
+          campaign_marker = """  await editMode(page);
+            await page.getByRole('button', { name: '战役', exact: true }).click();
+            await page.locator('[data-os-campaign=\"name\"]').fill('周五战役'); await page.locator('[data-os-campaign=\"name\"]').blur();
+            await page.getByRole('button', { name: '添加检查点' }).click();
+          """
+          campaign_replacement = """  await editMode(page);
+            await page.getByRole('button', { name: '战役', exact: true }).click();
+            const campaignNameDraft = page.locator('[data-os-campaign=\"name\"]');
+            await campaignNameDraft.fill('周五战役');
+            await page.keyboard.press('Escape');
+            assert.equal(await launcher.evaluate(element => element === document.activeElement), true, 'Escape closes Table OS after flushing the focused draft');
+            await openTableOs(page);
+            await editMode(page);
+            await page.getByRole('button', { name: '战役', exact: true }).click();
+            assert.equal(await page.locator('[data-os-campaign=\"name\"]').inputValue(), '周五战役', 'Escape-close preserves the focused campaign draft without blur');
+            await page.getByRole('button', { name: '添加检查点' }).click();
+          """
+          if campaign_marker not in test:
+              raise SystemExit('campaign persistence test marker not found')
+          test = test.replace(campaign_marker, campaign_replacement, 1)
+
+          summary_marker = """      'toolbox-team bridge', 'two-stage private role reveal', 'moderator-note isolation', 'formula score sheet', 'unary formula operators', 'modal focus trap', 'nested reveal focus return', 'launcher focus return',
+                'campaign tracker persistence', 'campaign reload persistence', '320px mobile', 'tablet', 'dynamic bilingual UI'
+          """
+          summary_replacement = """      'toolbox-team bridge', 'two-stage private role reveal', 'moderator-note isolation', 'formula score sheet', 'unary formula operators', 'modal focus trap', 'nested reveal focus return', 'launcher focus return',
+                'pagehide draft flush', 'escape-close draft flush', 'campaign tracker persistence', 'campaign reload persistence', '320px mobile', 'tablet', 'dynamic bilingual UI'
+          """
+          if summary_marker not in test:
+              raise SystemExit('summary marker not found')
+          test = test.replace(summary_marker, summary_replacement, 1)
+          test_path.write_text(test)
+          PY
+      - name: Commit generated changes and remove migration workflow
+        run: |
+          rm .github/workflows/draft-persistence-migrate.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/tabletop.js tests/e2e/run-table-os-e2e.js .github/workflows/draft-persistence-migrate.yml
+          git commit -m 'fix: preserve active Table OS drafts on interruption'
+          git push origin HEAD:fix/table-os-draft-persistence-20260912
