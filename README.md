@@ -1,6 +1,6 @@
 # 桌游助手
 
-桌游助手是面向线下桌游聚会的离线工具 App，聚焦真实局内流程：谁在行动、还剩多久、本轮怎么记分、历史分数如何更正、随机决定如何完成、最终如何结算。界面支持中文与 English，可运行于 Web/PWA、Android 和 iOS。
+桌游助手是面向线下桌游聚会的离线 **Table OS / 桌面操作系统**：基础层负责计时、计分、随机、归档与结算，高级 Table OS 工作台负责跨类型桌游常见的状态追踪、阶段流程、团队/身份、公式计分和战役记忆。界面支持中文与 English，可运行于 Web/PWA、Android 和 iOS；核心使用场景不依赖账号或网络。
 
 ## 功能
 
@@ -8,18 +8,39 @@
 - 计时：轮到谁计谁、个人时间池、公共时间池、阶段/讨论倒计时；进度条与最后 30/10 秒视觉警示，运行中标题栏同步显示剩余时间，任意标签页可见悬浮计时徽章
 - 常亮：计时进行时可保持屏幕常亮（可在设置或开局页关闭），避免牌局中途熄屏
 - 计分：高分胜/低分胜、目标分、自定义计分栏位、回合分、历史更正
-- 模板：胜利点、奖励/惩罚、低分胜、合作战役、胜负局
+- 基础模板：胜利点、奖励/惩罚、低分胜、合作战役、胜负局
+- Table OS：Universal Tracker、可编辑 Phase Engine、团队、私密身份、公式计分、战役检查点与本地 JSON 导入/导出
+- Table OS 模板：通用、引擎/终局计分、经济交易、合作危机、非对称冲突、隐藏身份、卡牌战斗、Campaign/Legacy、聚会分队；模板只是可编辑工作流起点，不替代官方规则
 - 结算：按当前胜负规则排序，可复制本局摘要；结束后自动归档到“历史对局”，随时查看、复制或删除；「再来一局」保留玩家名单与各项设置，直接开下一局
 - 工具：掷骰/硬币（结果大屏展示）、随机首家、行动顺序洗牌、2–4 队均衡分队
 - 提醒：计时使用绝对截止时间，退到后台仍准确；授权后到时发送本地系统通知
 - 隐私：本地存储、无账号、无广告、无分析、无云同步
 - 发布：PWA 离线缓存 + Capacitor Android/iOS 原生壳
 
+## Table OS 架构
+
+Table OS 使用独立本地状态 `board-game-assistant-table-os-v1`，通过稳定玩家引用与主对局名单同步，而不修改已经成熟的基础计时/计分状态模型。这样可以让高级工作台独立迁移、测试、导入/导出和回退，同时避免一次大升级把现有牌局流程耦合成单一巨型 schema。
+
+当前高级层包含：
+
+- 最多 32 名参与者，可同步主应用玩家，也可加入主持/扩展参与者
+- 公共、每位玩家、每个团队三类通用追踪器，并支持步长与上下限
+- 可编辑阶段列表、当前阶段和循环计数
+- 最多 8 个团队，以及身份、阵营、主持备注和“传递设备后私密查看”
+- 最多 16 个高级计分栏；公式只接受数字、变量、算术运算符与括号，不使用 `eval` / `Function`
+- Campaign / Legacy 战役名称、章节/场景、局数、跨局备注和最多 40 个检查点/解锁项
+
+详细设计见 `TABLE_OS.md`，自动化发布门槛见 `docs/TABLE_OS_TEST_MATRIX.md`。
+
 ## 目录
 
 - `index.html`：Web 入口
 - `src/app.js`：应用主逻辑
 - `src/core.js`：可测试的计时、计分、随机与状态迁移核心
+- `src/tabletop-core.js`：Table OS 纯状态模型、模板、公式解析与序列化
+- `src/tabletop.js`：Table OS 浏览器工作台与本地持久化
+- `src/tabletop-event-boundary.js`：隔离背景 dismiss 与表单/动作事件委托，防止普通控件点击误关闭工作台
+- `src/tabletop.css`：Table OS 响应式界面
 - `src/i18n.js`：中英文案与格式化
 - `src/native.js`：本地通知、屏幕常亮、前后台恢复与剪贴板适配
 - `src/archive.js`：历史对局本地存档（独立于对局状态持久化）
@@ -39,9 +60,13 @@
 - `google-play-assets/`：Google Play 文案、隐私政策、图标、feature graphic 与双语截图
 - `app-store-assets/`：App Store 中英文描述与 iPhone/iPad 双语截图
 - `STORE_RELEASE_CHECKLIST.md`：Google Play 和 App Store 上架准备清单
-- `tests/e2e/run-e2e.js`：真实 Chromium 端到端测试
+- `TABLE_OS.md`：高级桌游工作台设计、兼容性与数据模型说明
+- `docs/TABLE_OS_TEST_MATRIX.md`：Table OS 与基础应用共同的发布门禁矩阵
+- `tests/e2e/run-e2e.js`：基础应用真实 Chromium 端到端测试
+- `tests/e2e/run-table-os-e2e.js`：手机尺寸 Table OS 完整交互端到端测试
 - `tests/e2e/run-subpath-e2e.js`：PWA 子路径部署、Service Worker 与离线回归测试
 - `.github/workflows/ci.yml`：CI 流水线（安全审计、Web 测试、商店素材、Android APK/AAB、Android 临时签名 smoke test、iOS Simulator 编译、统一 RC artifact）
+- `.github/workflows/pages.yml`：GitHub Pages 构建、部署及线上静态资源 smoke test
 - `.github/workflows/release.yml`：手动签名 Release Candidate 工作流
 
 ## 开发
@@ -70,7 +95,7 @@ npm run build
 npm run check
 ```
 
-它会先构建，检查 `package.json` / Android / iOS 的用户可见版本是否一致，再校验发布清单与原生 build metadata、Android 发布权限和 iOS 隐私声明，最后运行 Node 单元测试、根路径 Chromium E2E，以及挂载到 `/boardgame-helper/` 的子路径 PWA E2E。首次运行若缺少浏览器：
+它会先构建，检查 `package.json` / Android / iOS 的用户可见版本是否一致，再校验发布清单与原生 build metadata、Android 发布权限和 iOS 隐私声明，最后运行 Node 单元测试、基础应用 Chromium E2E、Table OS 手机 E2E，以及挂载到 `/boardgame-helper/` 的子路径 PWA E2E。首次运行若缺少浏览器：
 
 ```bash
 npx playwright install chromium
@@ -80,7 +105,7 @@ GitHub Actions 在 Pull Request 上还会额外执行 high/critical npm 漏洞�
 
 ## Web / PWA 部署
 
-`dist/` 可以部署在域名根目录，也可以部署到 `/boardgame-helper/` 这类子路径。HTML、Web App Manifest、Service Worker 预缓存和离线 fallback 都会跟随当前部署目录，不要求站点拥有域名根路径。
+`dist/` 可以部署在域名根目录，也可以部署到 `/boardgame-helper/` 这类子路径。HTML、Web App Manifest、Service Worker 预缓存和离线 fallback 都会跟随当前部署目录，不要求站点拥有域名根路径。Table OS 的 JS、纯核心、事件边界与 CSS 也全部进入 Service Worker APP_SHELL。
 
 可在本地模拟子路径托管：
 
@@ -90,6 +115,8 @@ BASE_PATH=/boardgame-helper/ node scripts/serve-static.js dist
 ```
 
 然后打开 `http://127.0.0.1:3000/boardgame-helper/`。`npm run check` 会自动覆盖同样的子路径场景并验证离线刷新。
+
+`master` 上的 **Deploy Web Preview** 工作流会生成可下载的 Web artifact；仓库启用 GitHub Pages / GitHub Actions 作为发布源后，同一工作流会部署站点，并从公网重新抓取首页、Manifest、Service Worker、隐私页、主应用 JS 以及全部 Table OS 运行时/样式文件做 smoke test。只有部署和公网 smoke 都成功，才把页面视为已上线。
 
 ## 版本与发版
 
