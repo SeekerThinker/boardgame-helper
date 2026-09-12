@@ -7,7 +7,7 @@ const APP_SHELL = [
   '', 'index.html', 'privacy.html', 'manifest.json', 'icon-192.png', 'icon-512.png',
   'src/app.js', 'src/core.js', 'src/i18n.js', 'src/native.js', 'src/audio.js', 'src/archive.js', 'src/style.css',
   'src/tabletop-event-boundary.js', 'src/tabletop.js', 'src/tabletop-core.js', 'src/tabletop.css',
-  'src/tabletop-companion.js', 'src/tabletop-companion.css'
+  'src/tabletop-companion.js', 'src/tabletop-companion.css', 'src/tabletop-archive-bridge.js'
 ].map(appUrl);
 
 self.addEventListener('install', event => {
