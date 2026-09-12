@@ -12,7 +12,7 @@
     "build:android:release": "node scripts/build-android-release.js",
     "preview": "node scripts/serve-static.js dist",
     "test:unit": "node --test tests/unit/*.test.js",
-    "test:e2e": "node tests/e2e/run-e2e.js && node tests/e2e/run-table-os-e2e.js && node tests/e2e/run-table-os-companion-e2e.js",
+    "test:e2e": "node tests/e2e/run-e2e.js && node tests/e2e/run-table-os-e2e.js && node tests/e2e/run-table-os-companion-e2e.js && node tests/e2e/run-table-os-archive-e2e.js",
     "test:e2e:subpath": "npm run build && node tests/e2e/run-subpath-e2e.js",
     "test:security": "npm audit --audit-level=high",
     "test": "npm run test:unit && npm run test:e2e && npm run test:e2e:subpath",
