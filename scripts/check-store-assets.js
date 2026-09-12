@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const screens = ['01-flow', '02-score', '03-history', '04-tools', '05-results'];
+const screens = ['01-flow', '02-score', '03-table-os', '04-tools', '05-results'];
 const locales = ['zh', 'en'];
 
 const screenshotSpecs = [
