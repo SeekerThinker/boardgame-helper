@@ -740,68 +740,71 @@ function tokenizeFormula(expression) {
   return tokens;
 }
 
-const PRECEDENCE = { '+': 1, '-': 1, '*': 2, '/': 2 };
-
 export function evaluateFormula(expression, variables = {}) {
   let tokens;
   try { tokens = tokenizeFormula(expression); } catch (error) { return { ok: false, value: 0, error: error.message }; }
   if (!tokens.length) return { ok: true, value: 0, error: null };
-  const output = [];
-  const operators = [];
-  let previous = 'start';
-  try {
-    tokens.forEach(token => {
-      if (/^\d/.test(token)) {
-        output.push(Number(token));
-        previous = 'value';
-        return;
-      }
-      if (/^[A-Za-z_]/.test(token)) {
-        output.push(number(variables[token], 0));
-        previous = 'value';
-        return;
-      }
-      if (token === '(') {
-        operators.push(token);
-        previous = 'open';
-        return;
-      }
-      if (token === ')') {
-        while (operators.length && operators[operators.length - 1] !== '(') output.push(operators.pop());
-        if (!operators.length) throw new Error('unbalanced-parentheses');
-        operators.pop();
-        previous = 'value';
-        return;
-      }
-      if (!(token in PRECEDENCE)) throw new Error('invalid-operator');
-      if (token === '-' && ['start', 'open', 'operator'].includes(previous)) output.push(0);
-      while (operators.length && operators[operators.length - 1] in PRECEDENCE && PRECEDENCE[operators[operators.length - 1]] >= PRECEDENCE[token]) {
-        output.push(operators.pop());
-      }
-      operators.push(token);
-      previous = 'operator';
-    });
-    while (operators.length) {
-      const operator = operators.pop();
-      if (operator === '(') throw new Error('unbalanced-parentheses');
-      output.push(operator);
+
+  let index = 0;
+  const peek = () => tokens[index];
+  const take = () => tokens[index++];
+
+  function parsePrimary() {
+    const token = take();
+    if (token == null) throw new Error('invalid-expression');
+    if (/^\d/.test(token)) return Number(token);
+    if (/^[A-Za-z_]/.test(token)) return number(variables[token], 0);
+    if (token === '(') {
+      const value = parseExpression();
+      if (take() !== ')') throw new Error('unbalanced-parentheses');
+      return value;
     }
-    const stack = [];
-    output.forEach(token => {
-      if (typeof token === 'number') { stack.push(token); return; }
-      if (stack.length < 2) throw new Error('invalid-expression');
-      const right = stack.pop();
-      const left = stack.pop();
-      if (token === '+') stack.push(left + right);
-      if (token === '-') stack.push(left - right);
-      if (token === '*') stack.push(left * right);
-      if (token === '/') {
+    if (token === ')') throw new Error('unbalanced-parentheses');
+    throw new Error('invalid-expression');
+  }
+
+  function parseUnary() {
+    const token = peek();
+    if (token === '+' || token === '-') {
+      take();
+      const value = parseUnary();
+      return token === '-' ? -value : value;
+    }
+    return parsePrimary();
+  }
+
+  function parseTerm() {
+    let value = parseUnary();
+    while (peek() === '*' || peek() === '/') {
+      const operator = take();
+      const right = parseUnary();
+      if (operator === '*') value *= right;
+      else {
         if (right === 0) throw new Error('division-by-zero');
-        stack.push(left / right);
+        value /= right;
       }
-    });
-    if (stack.length !== 1 || !Number.isFinite(stack[0])) throw new Error('invalid-result');
-    return { ok: true, value: Math.round(stack[0] * 100) / 100, error: null };
+    }
+    return value;
+  }
+
+  function parseExpression() {
+    let value = parseTerm();
+    while (peek() === '+' || peek() === '-') {
+      const operator = take();
+      const right = parseTerm();
+      value = operator === '+' ? value + right : value - right;
+    }
+    return value;
+  }
+
+  try {
+    const value = parseExpression();
+    if (index !== tokens.length) {
+      if (peek() === ')') throw new Error('unbalanced-parentheses');
+      throw new Error('invalid-expression');
+    }
+    if (!Number.isFinite(value)) throw new Error('invalid-result');
+    return { ok: true, value: Math.round(value * 100) / 100, error: null };
   } catch (error) {
     return { ok: false, value: 0, error: error.message };
   }
