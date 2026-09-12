@@ -129,6 +129,17 @@ async function runPrimaryFlow() {
   const firstScoreCard = page.locator('.tableos-score-table > article').first();
   assert.equal(await firstScoreCard.locator('output').last().textContent(), '13');
 
+
+  // Unary +/- follows ordinary arithmetic precedence in real formula-field editing.
+  await editMode(page);
+  await page.getByRole('button', { name: '计分表', exact: true }).click();
+  const netFormula = page.locator('[data-os-score-formula]').first();
+  await netFormula.fill('-(base + bonus) / -2 + objective - penalty');
+  await netFormula.blur();
+  await page.getByRole('button', { name: '牌局模式' }).click();
+  await page.getByRole('button', { name: '计分表', exact: true }).click();
+  assert.equal(await page.locator('.tableos-score-table > article').first().locator('output').last().textContent(), '5', 'unary formula syntax works through the live score sheet');
+
   // Campaign trackers have explicit lifetimes: health resets; experience persists across new scenarios.
   await applyTemplate(page, 'campaign');
   await page.getByRole('button', { name: '追踪器', exact: true }).click();
@@ -198,7 +209,7 @@ async function run() {
     event: 'table-os-e2e-summary', status: 'PASS',
     checks: [
       'play/edit separation', 'purpose-first quick start', 'roster sync', 'universal trackers', 'phase engine',
-      'toolbox-team bridge', 'two-stage private role reveal', 'moderator-note isolation', 'formula score sheet',
+      'toolbox-team bridge', 'two-stage private role reveal', 'moderator-note isolation', 'formula score sheet', 'unary formula operators',
       'campaign tracker persistence', 'campaign reload persistence', '320px mobile', 'tablet', 'dynamic bilingual UI'
     ]
   }, null, 2));

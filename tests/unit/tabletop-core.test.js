@@ -125,6 +125,12 @@ test('formula evaluator only accepts arithmetic and variables', () => {
   assert.deepEqual(evaluateFormula('base + bonus * 2 - penalty', { base: 10, bonus: 3, penalty: 1 }), { ok: true, value: 15, error: null });
   assert.equal(evaluateFormula('(a + b) / 2', { a: 10, b: 6 }).value, 8);
   assert.equal(evaluateFormula('-5 + a', { a: 8 }).value, 3);
+  assert.equal(evaluateFormula('a * -2', { a: 3 }).value, -6, 'unary minus works after multiplication');
+  assert.equal(evaluateFormula('-(a + b)', { a: 4, b: 3 }).value, -7, 'unary minus works before parentheses');
+  assert.equal(evaluateFormula('a / -2', { a: 8 }).value, -4, 'unary minus works after division');
+  assert.equal(evaluateFormula('--5 + +a', { a: 2 }).value, 7, 'nested unary operators are deterministic');
+  assert.equal(evaluateFormula('2(3)', {}).ok, false, 'implicit multiplication stays rejected');
+  assert.equal(evaluateFormula('a / -(b - b)', { a: 8, b: 3 }).ok, false, 'division by unary zero stays rejected');
   assert.equal(evaluateFormula('globalThis.alert(1)', {}).ok, false, 'function calls are rejected');
   assert.equal(evaluateFormula('1 / 0', {}).ok, false, 'division by zero is rejected');
 });
