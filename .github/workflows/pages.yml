@@ -67,6 +67,8 @@ jobs:
     if: needs.build.outputs.pages_ready == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -74,3 +76,44 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  smoke:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Smoke-test deployed Pages site
+        shell: bash
+        env:
+          PAGE_URL: ${{ needs.deploy.outputs.page_url }}
+        run: |
+          set -euo pipefail
+          BASE_URL="${PAGE_URL%/}/"
+
+          fetch() {
+            local path="$1"
+            local output="$2"
+            curl \
+              --fail \
+              --silent \
+              --show-error \
+              --location \
+              --retry 6 \
+              --retry-all-errors \
+              --retry-delay 5 \
+              "${BASE_URL}${path}" \
+              --output "$output"
+          }
+
+          fetch '' "$RUNNER_TEMP/index.html"
+          fetch 'manifest.json' "$RUNNER_TEMP/manifest.json"
+          fetch 'sw.js' "$RUNNER_TEMP/sw.js"
+          fetch 'privacy.html' "$RUNNER_TEMP/privacy.html"
+          fetch 'src/app.js' "$RUNNER_TEMP/app.js"
+
+          grep -q 'manifest.json' "$RUNNER_TEMP/index.html"
+          grep -q 'src/app.js' "$RUNNER_TEMP/index.html"
+          grep -q 'serviceWorker' "$RUNNER_TEMP/app.js"
+          grep -q 'Board Game Assistant' "$RUNNER_TEMP/manifest.json"
+
+          printf 'Live preview verified: %s\n' "$BASE_URL" | tee -a "$GITHUB_STEP_SUMMARY"
