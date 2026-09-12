@@ -1,0 +1,28 @@
+name: Table OS Archive Migration
+on:
+  push:
+    branches: [feat/table-os-archive-summary-20260912]
+permissions:
+  contents: write
+jobs:
+  migrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feat/table-os-archive-summary-20260912
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Generate archive bridge changes
+        run: node scripts/migrate-tableos-archive.mjs
+      - name: Commit generated changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm .github/workflows/tableos-archive-migrate.yml scripts/migrate-tableos-archive.mjs
+          git add -A
+          git commit -m "feat: archive Table OS summary with finished games"
+          git push origin HEAD:feat/table-os-archive-summary-20260912
