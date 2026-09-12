@@ -161,6 +161,13 @@ async function main() {
     browser = await chromium.launch();
     await createFeatureGraphic(browser);
     for (const locale of ['zh', 'en']) {
+      const outputRoots = [...new Set(devices.map(device => device.output))];
+      for (const outputRoot of outputRoots) {
+        const localeDir = path.join(root, outputRoot, locale);
+        await fs.rm(localeDir, { recursive: true, force: true });
+        await fs.mkdir(localeDir, { recursive: true });
+      }
+
       const gameState = fixture(locale);
       for (const device of devices) {
         const context = await browser.newContext({
@@ -182,8 +189,6 @@ async function main() {
         await page.goto(baseUrl);
         await page.addStyleTag({ content: '*{transition:none!important;animation:none!important}html{scrollbar-width:none}::-webkit-scrollbar{display:none}' });
         const localeDir = path.join(root, device.output, locale);
-        await fs.rm(localeDir, { recursive: true, force: true });
-        await fs.mkdir(localeDir, { recursive: true });
         for (const screen of screens) {
           const outputPath = path.join(localeDir, `${device.id}-${screen}.png`);
           await captureView(page, screen, outputPath, locale, gameState);
