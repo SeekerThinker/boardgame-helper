@@ -221,6 +221,14 @@ async function runPrimaryFlow() {
   assert.ok(await page.getByText('周五战役', { exact: true }).isVisible());
   assert.ok(await page.getByText('开启北门', { exact: true }).isVisible());
 
+  // Changing setup templates must not silently destroy persistent campaign memory.
+  await editMode(page);
+  await page.locator('[data-os-template]').selectOption('engine-score');
+  await page.getByRole('button', { name: '应用模板' }).click();
+  await page.getByRole('button', { name: '战役', exact: true }).click();
+  assert.ok(await page.getByText('周五战役', { exact: true }).isVisible(), 'campaign name survives template application');
+  assert.ok(await page.getByText('开启北门', { exact: true }).isVisible(), 'campaign checkpoints survive template application');
+
   // English UI follows the main language dynamically.
   await page.keyboard.press('Escape');
   assert.equal(await launcher.evaluate(element => element === document.activeElement), true, 'closing Table OS returns focus to the launcher');
