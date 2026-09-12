@@ -1,20 +1,19 @@
-Board Game Assistant is built for offline board game hosts. It focuses on the real table flow: who is acting, how much time is left, how the current round is scored, how past scores can be corrected, how random table decisions stay fair, and how the game is settled.
+Board Game Assistant is an offline companion for in-person board game nights. Simple games can use the focused timer, scoring, random tools and final results. When a heavier game needs more help, Table OS adds state trackers, phase flow, teams and private roles, formula scoring, and campaign memory without turning the app into a rules database.
 
 Core features:
 • Flow screen: active player, large timer, round scoring and next-round controls in one place
 • Timer modes: turn timer, personal clock, shared time pool and phase/discussion countdown
-• Score templates: victory points, reward/penalty, low-score wins, cooperative campaign and match scoring
-• Editable history: review and correct every round, then automatically recalculate totals and ranking
-• Tabletop toolbox: dice/coin, random first player, turn-order shuffle and balanced 2–4 team assignment
+• Flexible scoring: high-score or low-score wins, target reminders, editable round history, plus an optional advanced formula score sheet
+• Table OS trackers: health, resources, threat, money, experience, reputation and other shared/player/team state
+• Phase flow: editable phases with cycle tracking and a direct bridge back to the main timer
+• Teams and hidden roles: team membership, faction, role and moderator notes; player roles use a two-stage private reveal and moderator notes are never shown to the player
+• Campaign / Legacy memory: campaign name, chapter, checkpoints and persistent notes; each tracker can reset every session or persist across the campaign
+• Tabletop toolbox: dice/coin, random first player, turn-order shuffle and balanced 2–4 team assignment, with recent teams reusable in Table OS
 • Background alerts: with notification permission, a local system alert fires when an active timer reaches zero
-• Final results: sort by high-score or low-score rules and copy the session summary
-• Offline privacy: no account, no network requirement, no ads and no analytics SDK
+• Offline privacy: no account, no network requirement, no ads and no analytics SDK; data stays on the device
 
-Use it for:
-• Strategy games with long turns
-• Party games with frequent score changes
-• Low-score and penalty-point games
-• Cooperative campaign scoring
-• Chess-like and abstract match play
+To keep game night simple, Table OS opens in a streamlined Play mode that shows only live state, phases, roles, scores and checkpoints. Templates, formulas, structure editing, import/export and other advanced settings stay in a separate Edit mode.
 
-Board Game Assistant is not a rules database and does not replace the game. It is a focused table tool for timing, round scoring and final results.
+Use it for strategy games, party games, low-score games, cooperative crisis games, card-game life tracking, hidden-role moderation, asymmetric factions and Campaign / Legacy play.
+
+Board Game Assistant does not replace the board, cards, negotiation or face-to-face play. It only takes over the table state that is easy to forget, miscount or repeatedly recalculate.
