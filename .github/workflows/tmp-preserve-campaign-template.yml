@@ -1,0 +1,139 @@
+name: Temporary campaign template safety migration
+
+on:
+  push:
+    branches:
+      - fix/preserve-campaign-on-template-apply
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/preserve-campaign-on-template-apply
+          fetch-depth: 0
+      - name: Apply focused source and test changes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              file = Path(path)
+              text = file.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one match, found {count}')
+              file.write_text(text.replace(old, new, 1))
+
+          core_old = """function resetTemplateModules(state) {
+            state.trackers = [];
+            state.phases = { items: [], activeIndex: 0, cycle: 1 };
+            state.teams = [];
+            state.roles = [];
+            state.scoreSheet = { fields: [], values: {} };
+            state.campaign = { enabled: false, name: '', chapter: '', sessionNumber: 1, notes: '', flags: [] };
+          }
+"""
+          core_new = """function resetTemplateModules(state) {
+            state.trackers = [];
+            state.phases = { items: [], activeIndex: 0, cycle: 1 };
+            state.teams = [];
+            state.roles = [];
+            state.scoreSheet = { fields: [], values: {} };
+          }
+"""
+          replace_once('src/tabletop-core.js', core_old, core_new)
+
+          replace_once(
+              'src/tabletop-core.js',
+              "  state.campaign.enabled = Boolean(template.campaign);\n",
+              "  // Templates may enable campaign support, but must never silently erase or disable persistent campaign memory.\n  if (template.campaign) state.campaign.enabled = true;\n"
+          )
+
+          unit_marker = "\ntest('universal trackers support scopes, clamps and explicit persistence', () => {"
+          unit_insert = """
+
+test('template application preserves persistent campaign memory', () => {
+  const state = createDefaultTableOsState();
+  const player = addParticipant(state, 'A');
+  applyAssistantTemplate(state, 'campaign');
+  state.campaign.name = 'Friday Campaign';
+  state.campaign.chapter = 'Chapter 3';
+  state.campaign.sessionNumber = 7;
+  state.campaign.notes = 'Do not lose this note';
+  const flag = addCampaignFlag(state, 'Unlocked north gate');
+  toggleCampaignFlag(state, flag.id);
+  setRole(state, player.id, { role: 'Scout', note: 'session-only secret', secret: true });
+
+  applyAssistantTemplate(state, 'engine-score');
+
+  assert.equal(state.appliedTemplateId, 'engine-score');
+  assert.equal(state.roles.length, 0, 'template still resets live role setup');
+  assert.equal(state.campaign.enabled, true, 'a non-campaign template must not silently disable an active campaign');
+  assert.equal(state.campaign.name, 'Friday Campaign');
+  assert.equal(state.campaign.chapter, 'Chapter 3');
+  assert.equal(state.campaign.sessionNumber, 7);
+  assert.equal(state.campaign.notes, 'Do not lose this note');
+  assert.deepEqual(state.campaign.flags.map(item => ({ name: item.name, checked: item.checked })), [
+    { name: 'Unlocked north gate', checked: true }
+  ]);
+});
+"""
+          replace_once('tests/unit/tabletop-core.test.js', unit_marker, unit_insert + unit_marker)
+
+          e2e_old = """  assert.ok(await page.getByText('周五战役', { exact: true }).isVisible());
+  assert.ok(await page.getByText('开启北门', { exact: true }).isVisible());
+
+  // English UI follows the main language dynamically.
+"""
+          e2e_new = """  assert.ok(await page.getByText('周五战役', { exact: true }).isVisible());
+  assert.ok(await page.getByText('开启北门', { exact: true }).isVisible());
+
+  // Changing setup templates must not silently destroy persistent campaign memory.
+  await editMode(page);
+  await page.locator('[data-os-template]').selectOption('engine-score');
+  await page.getByRole('button', { name: '应用模板' }).click();
+  await page.getByRole('button', { name: '战役', exact: true }).click();
+  assert.ok(await page.getByText('周五战役', { exact: true }).isVisible(), 'campaign name survives template application');
+  assert.ok(await page.getByText('开启北门', { exact: true }).isVisible(), 'campaign checkpoints survive template application');
+
+  // English UI follows the main language dynamically.
+"""
+          replace_once('tests/e2e/run-table-os-e2e.js', e2e_old, e2e_new)
+
+          replace_once(
+              'docs/TABLE_OS_TEST_MATRIX.md',
+              '| Node unit tests | roster sync, participant bounds, templates, tracker scopes/clamps, session-vs-campaign tracker persistence, phase cycles, team/role reference cleanup, safe formula parsing, score calculations, campaign persistence, serialization/normalization |',
+              '| Node unit tests | roster sync, participant bounds, templates, template-safe campaign persistence, tracker scopes/clamps, session-vs-campaign tracker persistence, phase cycles, team/role reference cleanup, safe formula parsing, score calculations, campaign persistence, serialization/normalization |'
+          )
+          replace_once(
+              'docs/TABLE_OS_TEST_MATRIX.md',
+              '| Table OS Chromium E2E | default Play mode, purpose-first quick start, Edit mode, roster sync, universal trackers, phase engine, toolbox-team bridge, two-stage private role reveal, moderator-note isolation, formula score sheet, campaign tracker lifetime, campaign reload persistence, dynamic bilingual UI |',
+              '| Table OS Chromium E2E | default Play mode, purpose-first quick start, Edit mode, roster sync, universal trackers, phase engine, toolbox-team bridge, two-stage private role reveal, moderator-note isolation, formula score sheet, campaign tracker lifetime, campaign reload persistence, campaign survival across template changes, dynamic bilingual UI |'
+          )
+          replace_once(
+              'docs/TABLE_OS_TEST_MATRIX.md',
+              '- `campaign` trackers must survive New scenario / rematch; `session` trackers must reset to their initial values.\n',
+              '- `campaign` trackers must survive New scenario / rematch; `session` trackers must reset to their initial values.\n- Applying a setup template must not erase or silently disable persistent campaign metadata, notes or checkpoints.\n'
+          )
+          PY
+          git diff --check
+          git diff -- src/tabletop-core.js tests/unit/tabletop-core.test.js tests/e2e/run-table-os-e2e.js docs/TABLE_OS_TEST_MATRIX.md
+      - name: Commit focused fix and remove migration workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/tabletop-core.js tests/unit/tabletop-core.test.js tests/e2e/run-table-os-e2e.js docs/TABLE_OS_TEST_MATRIX.md
+          git commit -m "fix: preserve campaign memory across templates"
+          git push origin HEAD:fix/preserve-campaign-on-template-apply
+          git rm .github/workflows/tmp-preserve-campaign-template.yml
+          git commit -m "chore: remove temporary migration workflow"
+          git push origin HEAD:fix/preserve-campaign-on-template-apply
