@@ -69,39 +69,30 @@ jobs:
 
           test_path = Path('tests/e2e/run-table-os-e2e.js')
           test = test_path.read_text()
-          unary_marker = """  assert.equal(await page.locator('.tableos-score-table > article').first().locator('output').last().textContent(), '5', 'unary formula syntax works through the live score sheet');
+          campaign_comment = '  // Campaign trackers have explicit lifetimes: health resets; experience persists across new scenarios.'
+          campaign_index = test.find(campaign_comment)
+          if campaign_index < 0:
+              raise SystemExit('campaign comment marker not found')
+          pagehide_test = """  // A focused live value is flushed synchronously before page lifecycle interruption, even without blur/change.
+            const interruptedScore = page.locator('[data-os-score-value]').first();
+            const interruptedScoreKey = await interruptedScore.getAttribute('data-os-score-value');
+            assert.ok(interruptedScoreKey, 'live score input exposes a persistence key');
+            await interruptedScore.focus();
+            await interruptedScore.evaluate(element => { element.value = '21'; });
+            await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+            assert.equal(await page.evaluate(key => {
+              const [participantId, fieldId] = key.split('|');
+              const stored = JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1'));
+              return Number(stored?.scoreSheet?.values?.[participantId]?.[fieldId]);
+            }, interruptedScoreKey), 21, 'pagehide flushes the active live score draft before blur');
 
-          // Campaign trackers have explicit lifetimes: health resets; experience persists across new scenarios.
           """
-          unary_replacement = """  assert.equal(await page.locator('.tableos-score-table > article').first().locator('output').last().textContent(), '5', 'unary formula syntax works through the live score sheet');
+          test = test[:campaign_index] + pagehide_test + test[campaign_index:]
 
-          // A focused live value is flushed synchronously before page lifecycle interruption, even without blur/change.
-          const interruptedScore = page.locator('[data-os-score-value]').first();
-          const interruptedScoreKey = await interruptedScore.getAttribute('data-os-score-value');
-          assert.ok(interruptedScoreKey, 'live score input exposes a persistence key');
-          await interruptedScore.focus();
-          await interruptedScore.evaluate(element => { element.value = '21'; });
-          await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
-          assert.equal(await page.evaluate(key => {
-            const [participantId, fieldId] = key.split('|');
-            const stored = JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1'));
-            return Number(stored?.scoreSheet?.values?.[participantId]?.[fieldId]);
-          }, interruptedScoreKey), 21, 'pagehide flushes the active live score draft before blur');
-
-          // Campaign trackers have explicit lifetimes: health resets; experience persists across new scenarios.
-          """
-          if unary_marker not in test:
-              raise SystemExit('unary formula test marker not found')
-          test = test.replace(unary_marker, unary_replacement, 1)
-
-          campaign_marker = """  await editMode(page);
-            await page.getByRole('button', { name: '战役', exact: true }).click();
-            await page.locator('[data-os-campaign=\"name\"]').fill('周五战役'); await page.locator('[data-os-campaign=\"name\"]').blur();
-            await page.getByRole('button', { name: '添加检查点' }).click();
-          """
-          campaign_replacement = """  await editMode(page);
-            await page.getByRole('button', { name: '战役', exact: true }).click();
-            const campaignNameDraft = page.locator('[data-os-campaign=\"name\"]');
+          campaign_line = "  await page.locator('[data-os-campaign=\"name\"]').fill('周五战役'); await page.locator('[data-os-campaign=\"name\"]').blur();"
+          if campaign_line not in test:
+              raise SystemExit('campaign name persistence line not found')
+          campaign_replacement = """  const campaignNameDraft = page.locator('[data-os-campaign=\"name\"]');
             await campaignNameDraft.focus();
             await campaignNameDraft.evaluate(element => { element.value = '周五战役'; });
             await page.keyboard.press('Escape');
@@ -109,12 +100,8 @@ jobs:
             await openTableOs(page);
             await editMode(page);
             await page.getByRole('button', { name: '战役', exact: true }).click();
-            assert.equal(await page.locator('[data-os-campaign=\"name\"]').inputValue(), '周五战役', 'Escape-close preserves the focused campaign draft without blur');
-            await page.getByRole('button', { name: '添加检查点' }).click();
-          """
-          if campaign_marker not in test:
-              raise SystemExit('campaign persistence test marker not found')
-          test = test.replace(campaign_marker, campaign_replacement, 1)
+            assert.equal(await page.locator('[data-os-campaign=\"name\"]').inputValue(), '周五战役', 'Escape-close preserves the focused campaign draft without blur');"""
+          test = test.replace(campaign_line, campaign_replacement, 1)
 
           summary_marker = "'campaign tracker persistence', 'campaign reload persistence'"
           if summary_marker not in test:
