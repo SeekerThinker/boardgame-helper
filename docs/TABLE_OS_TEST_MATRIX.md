@@ -24,6 +24,7 @@ The following are release blockers rather than optional polish:
 - `campaign` trackers must survive New scenario / rematch; `session` trackers must reset to their initial values.
 - Applying a setup template must not erase or silently disable persistent campaign metadata, notes or checkpoints.
 - My Templates must remain local-only structural snapshots: no participants, team membership, roles/factions/moderator notes, live tracker/score values or campaign content may be copied into them.
+- Normalization/import must drop Tracker/Status live values for entities that do not exist in the current participant/team roster; invisible stale IDs must never survive persistence or re-export.
 - Play mode must not expose template selectors, score formula configuration or roster edit fields.
 - Advanced configuration must remain reachable in one action through Edit mode.
 - Existing basic timer/scoring flows must remain unchanged by Table OS work.
@@ -40,3 +41,9 @@ The production Android signing key, Apple distribution identity/profile and stor
 
 - Unit: replacing the whole team roster creates fresh team identities, keeps only valid participant membership, and clears retired team-scoped Tracker/Status overrides before persistence/export.
 - Chromium: adopting toolbox teams removes retired team IDs and hidden live values; replacement teams render the Tracker/Status defaults instead.
+
+### Normalization stale-entity cleanup
+
+- Unit: global / participant / team Tracker and Status maps preserve only entity IDs valid for their current scope.
+- Unit: parse + serialize cannot retain retired participant/team IDs or values from an old scope.
+- Chromium: reload normalization removes hidden retired team/player values from local persistence while keeping valid live values.

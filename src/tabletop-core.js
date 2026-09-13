@@ -509,19 +509,40 @@ export function createDefaultTableOsState() {
   };
 }
 
+function pruneScopedEntityValues(items, participantIds, teamIds) {
+  const validByScope = {
+    global: new Set(['global']),
+    participant: participantIds,
+    team: teamIds
+  };
+  items.forEach(item => {
+    const valid = validByScope[item.scope] || validByScope.global;
+    const next = {};
+    Object.entries(item.values || {}).forEach(([entityId, value]) => {
+      if (valid.has(entityId)) next[entityId] = value;
+    });
+    item.values = next;
+  });
+  return items;
+}
+
 export function normalizeTableOsState(input) {
   const base = createDefaultTableOsState();
   if (!input || typeof input !== 'object') return base;
   const participants = normalizeParticipants(input.participants);
   const participantIds = new Set(participants.map(participant => participant.id));
+  const teams = normalizeTeams(input.teams, participantIds);
+  const teamIds = new Set(teams.map(team => team.id));
+  const trackers = pruneScopedEntityValues(normalizeTrackers(input.trackers), participantIds, teamIds);
+  const statuses = pruneScopedEntityValues(normalizeStatuses(input.statuses), participantIds, teamIds);
   return {
     schemaVersion: TABLE_OS_SCHEMA_VERSION,
     appliedTemplateId: normalizeAppliedTemplateId(input.appliedTemplateId),
     participants,
-    trackers: normalizeTrackers(input.trackers),
-    statuses: normalizeStatuses(input.statuses),
+    trackers,
+    statuses,
     phases: normalizePhases(input.phases),
-    teams: normalizeTeams(input.teams, participantIds),
+    teams,
     roles: normalizeRoles(input.roles, participantIds),
     scoreSheet: normalizeScoreSheet(input.scoreSheet, participantIds),
     campaign: normalizeCampaign(input.campaign),
