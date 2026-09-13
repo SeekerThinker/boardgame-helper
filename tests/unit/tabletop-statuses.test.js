@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  MAX_STATUSES, addParticipant, addStatus, addTeam, applyAssistantTemplate, applyUserTemplate,
+  TABLE_OS_SCHEMA_VERSION, MAX_STATUSES, addParticipant, addStatus, addTeam, applyAssistantTemplate, applyUserTemplate,
   createDefaultTableOsState, createUserTemplateFromState, normalizeTableOsState, removeParticipant, removeTeam,
   resetTableOsSession, setStatusValue, statusEntityIds, statusValue, toggleStatus
 } from '../../src/tabletop-core.js';
@@ -9,7 +9,7 @@ import {
 test('older Table OS state normalizes with an empty status shelf', () => {
   const state = normalizeTableOsState({ schemaVersion: 2, participants: [], trackers: [] });
   assert.deepEqual(state.statuses, []);
-  assert.equal(state.schemaVersion, 4);
+  assert.equal(state.schemaVersion, TABLE_OS_SCHEMA_VERSION);
 });
 
 test('participant and team statuses validate entities and prune removed references', () => {

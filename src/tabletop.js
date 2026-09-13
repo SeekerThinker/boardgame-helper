@@ -1,12 +1,12 @@
 import { STORAGE_KEY } from './core.js';
 import {
-  TABLE_OS_STORAGE_KEY, ASSISTANT_TEMPLATES, MAX_TABLE_OS_PARTICIPANTS, MAX_ENTITIES, MAX_TRACKERS, MAX_STATUSES, MAX_PHASES,
+  TABLE_OS_STORAGE_KEY, ASSISTANT_TEMPLATES, MAX_TABLE_OS_PARTICIPANTS, MAX_ENTITIES, MAX_TRACKERS, MAX_STATUSES, MAX_PHASES, MAX_PHASE_CHECKLIST_ITEMS,
   MAX_TEAMS, MAX_SCORE_FIELDS, MAX_CAMPAIGN_FLAGS, MAX_USER_TEMPLATES, uid, createDefaultTableOsState, normalizeTableOsState,
   syncParticipantsFromGame, addParticipant, addParticipantsFromText, renameParticipant, removeParticipant,
   addEntity, renameEntity, removeEntity,
   addTracker, removeTracker, trackerEntityIds, trackerValue, adjustTracker, setTrackerValue, setTrackerPersistence,
   addStatus, removeStatus, statusEntityIds, statusValue, toggleStatus,
-  addPhase, removePhase, setActivePhase, advancePhase,
+  addPhase, removePhase, setActivePhase, advancePhase, setPhaseChecklistFromText, togglePhaseChecklistItem,
   addTeam, replaceTeams, removeTeam, toggleTeamMember, setRole, replaceCharacterAssignmentsFromText, clearRole, roleForParticipant,
   addScoreSheetField, setScoreSheetFieldKey, removeScoreSheetField, setScoreSheetValue, scoreCardForParticipant,
   addCampaignFlag, toggleCampaignFlag, removeCampaignFlag,
@@ -33,7 +33,7 @@ const I18N = {
     addTracker: '添加追踪器', trackerName: '名称', scope: '范围', global: '公共', participant: '每位玩家', team: '每个团队', step: '步长', min: '最小', max: '最大',
     persistence: '保留到', sessionOnly: '本局', campaignPersist: '战役', noTrackers: '当前没有追踪器。',
     addStatus: '添加状态', noStatuses: '还没有状态开关。', statusHint: '状态是轻量开关；“新场景 / 下一局”会恢复到默认值。', defaultOn: '默认开启', customStatus: '新状态', on: '开启', off: '关闭',
-    addPhase: '添加阶段', cycle: '循环', previous: '上一步', next: '下一步', noPhases: '当前没有阶段。', phaseNote: '备注', openTimer: '去主计时器',
+    addPhase: '添加阶段', cycle: '循环', previous: '上一步', next: '下一步', noPhases: '当前没有阶段。', phaseNote: '备注', openTimer: '去主计时器', phaseChecklist: '阶段清单', phaseChecklistHelp: '每行一项；牌局模式可直接勾选。跨 cycle 或开始新场景时自动清空完成状态。', phaseChecklistPlaceholder: '执行阶段能力\n补充公共资源',
     addTeam: '添加团队', noTeams: '当前没有团队。', members: '成员', role: '身份', faction: '阵营', secret: '私密', note: '主持备注', reveal: '交给玩家查看', hide: '看完了', clear: '清除', bulkCharacters: '批量设置身份', bulkCharactersHelp: '每行对应一位参与者（按当前顺序）；可写“身份 | 阵营”或用制表符分隔。应用后会替换全部身份/阵营并清除旧主持备注；玩家查看流程保持不变。', bulkCharactersPlaceholder: '预言家 | 村民\n狼人 | 狼人阵营\n守卫 | 村民', replaceCharacters: '替换身份列表', charactersReplaced: '已批量设置身份：', bulkCharactersEmpty: '没有可应用的身份。', confirmBulkCharacters: '这会替换全部现有身份/阵营并清除旧主持备注。继续吗？',
     adoptTeams: '采用工具箱分队', noRandomTeams: '工具箱里还没有随机分队结果。', teamsAdopted: '已采用工具箱最近一次分队。',
     addScoreField: '添加计分栏', addFormula: '添加公式栏', fieldName: '栏位', key: '变量', formula: '公式', effect: '计入', total: '总分', included: '计入总分', excluded: '仅显示',
@@ -62,7 +62,7 @@ const I18N = {
     addTracker: 'Add tracker', trackerName: 'Name', scope: 'Scope', global: 'Shared', participant: 'Per player', team: 'Per team', step: 'Step', min: 'Min', max: 'Max',
     persistence: 'Keep for', sessionOnly: 'Session', campaignPersist: 'Campaign', noTrackers: 'No trackers yet.',
     addStatus: 'Add status', noStatuses: 'No status toggles yet.', statusHint: 'Statuses are lightweight toggles; New scenario / rematch restores their defaults.', defaultOn: 'Default on', customStatus: 'New status', on: 'On', off: 'Off',
-    addPhase: 'Add phase', cycle: 'Cycle', previous: 'Previous', next: 'Next', noPhases: 'No phases yet.', phaseNote: 'Note', openTimer: 'Open main timer',
+    addPhase: 'Add phase', cycle: 'Cycle', previous: 'Previous', next: 'Next', noPhases: 'No phases yet.', phaseNote: 'Note', openTimer: 'Open main timer', phaseChecklist: 'Phase checklist', phaseChecklistHelp: 'One item per line. Toggle items during play; completion resets when the cycle changes or a new scenario starts.', phaseChecklistPlaceholder: 'Resolve phase ability\nRefill shared supply',
     addTeam: 'Add team', noTeams: 'No teams yet.', members: 'Members', role: 'Role', faction: 'Faction', secret: 'Private', note: 'Moderator note', reveal: 'Pass to player', hide: 'Done', clear: 'Clear', bulkCharacters: 'Paste character list', bulkCharactersHelp: 'One line per participant in current order. Use “Role | Faction” or a tab separator. Applying replaces all assignments and clears old moderator notes; player reveal behavior stays unchanged.', bulkCharactersPlaceholder: 'Seer | Town\nWolf | Wolves\nGuard | Town', replaceCharacters: 'Replace character list', charactersReplaced: 'Assignments applied:', bulkCharactersEmpty: 'No assignments to apply.', confirmBulkCharacters: 'This replaces all existing assignments and clears old moderator notes. Continue?',
     adoptTeams: 'Use toolbox teams', noRandomTeams: 'There is no recent random-team result in the toolbox.', teamsAdopted: 'Latest toolbox teams adopted.',
     addScoreField: 'Add score field', addFormula: 'Add formula', fieldName: 'Field', key: 'Variable', formula: 'Formula', effect: 'Effect', total: 'Total', included: 'Included', excluded: 'Display only',
@@ -518,12 +518,19 @@ function renderTracker(tracker) {
   </article>`;
 }
 
+function renderPhaseChecklist(phase) {
+  const items = Array.isArray(phase.checklist) ? phase.checklist : [];
+  if (!items.length) return '';
+  const done = items.filter(item => item.done).length;
+  return `<div class="tableos-phase-checklist-live"><div class="tableos-phase-checklist-head"><span>${esc(tr('phaseChecklist'))}</span><strong>${done} / ${items.length}</strong></div>${items.map(item => `<button type="button" class="tableos-phase-checkitem ${item.done ? 'active' : ''}" data-os-phase-check="${phase.id}|${item.id}" aria-pressed="${item.done ? 'true' : 'false'}"><span aria-hidden="true">${item.done ? '✓' : '○'}</span><strong>${esc(item.label)}</strong></button>`).join('')}</div>`;
+}
+
 function renderPhases() {
   const active = state.phases.items[state.phases.activeIndex];
   return `<section class="tableos-card">
     <div class="tableos-card-head"><div><span>${esc(tr('phases'))}</span><h3>${active ? esc(active.name) : '—'} · ${esc(tr('cycle'))} ${state.phases.cycle}</h3></div>${state.ui.mode === 'edit' ? `<button class="tableos-btn primary" type="button" data-os-action="add-phase">${esc(tr('addPhase'))}</button>` : ''}</div>
     ${state.phases.items.length ? `<div class="tableos-phase-controls"><button class="tableos-btn" type="button" data-os-action="prev-phase">← ${esc(tr('previous'))}</button><button class="tableos-btn primary" type="button" data-os-action="next-phase">${esc(tr('next'))} →</button><button class="tableos-btn" type="button" data-os-action="open-timer">${esc(tr('openTimer'))}</button></div>` : ''}
-    <div class="tableos-phase-list">${state.phases.items.map((phase, index) => state.ui.mode === 'edit' ? `<article class="tableos-phase ${index === state.phases.activeIndex ? 'active' : ''}"><button class="tableos-phase-index" type="button" data-os-phase-active="${index}">${index + 1}</button><div><input value="${attr(phase.name)}" data-os-phase-name="${phase.id}" maxlength="32"><input value="${attr(phase.note)}" data-os-phase-note="${phase.id}" maxlength="120" placeholder="${attr(tr('phaseNote'))}"></div><button class="tableos-mini danger" type="button" data-os-remove-phase="${phase.id}">×</button></article>` : `<article class="tableos-phase tableos-phase-live ${index === state.phases.activeIndex ? 'active' : ''}"><button class="tableos-phase-index" type="button" data-os-phase-active="${index}">${index + 1}</button><div><strong>${esc(phase.name)}</strong>${phase.note ? `<span>${esc(phase.note)}</span>` : ''}</div></article>`).join('') || `<p class="tableos-empty">${esc(tr('noPhases'))}</p>`}</div>
+    <div class="tableos-phase-list">${state.phases.items.map((phase, index) => state.ui.mode === 'edit' ? `<article class="tableos-phase ${index === state.phases.activeIndex ? 'active' : ''}"><button class="tableos-phase-index" type="button" data-os-phase-active="${index}">${index + 1}</button><div><input value="${attr(phase.name)}" data-os-phase-name="${phase.id}" maxlength="32"><input value="${attr(phase.note)}" data-os-phase-note="${phase.id}" maxlength="120" placeholder="${attr(tr('phaseNote'))}"><details class="tableos-phase-checklist-editor"><summary>${esc(tr('phaseChecklist'))} · ${(phase.checklist || []).length}/${MAX_PHASE_CHECKLIST_ITEMS}</summary><p class="tableos-help">${esc(tr('phaseChecklistHelp'))}</p><textarea rows="3" maxlength="1200" data-os-phase-checklist="${phase.id}" placeholder="${attr(tr('phaseChecklistPlaceholder'))}">${esc((phase.checklist || []).map(item => item.label).join('\n'))}</textarea></details></div><button class="tableos-mini danger" type="button" data-os-remove-phase="${phase.id}">×</button></article>` : `<article class="tableos-phase tableos-phase-live ${index === state.phases.activeIndex ? 'active' : ''}"><button class="tableos-phase-index" type="button" data-os-phase-active="${index}">${index + 1}</button><div><strong>${esc(phase.name)}</strong>${phase.note ? `<span>${esc(phase.note)}</span>` : ''}${index === state.phases.activeIndex ? renderPhaseChecklist(phase) : ''}</div></article>`).join('') || `<p class="tableos-empty">${esc(tr('noPhases'))}</p>`}</div>
   </section>`;
 }
 
@@ -683,7 +690,7 @@ async function importFile(file) {
 
 function bindEvents() {
   document.addEventListener('click', event => {
-    const target = event.target instanceof Element ? event.target.closest('[data-os-action],[data-os-mode],[data-os-section],[data-os-quick-template],[data-os-remove-participant],[data-os-remove-entity],[data-os-status-toggle],[data-os-remove-status],[data-os-tracker-delta],[data-os-remove-tracker],[data-os-phase-active],[data-os-remove-phase],[data-os-remove-team],[data-os-role-reveal],[data-os-role-clear],[data-os-remove-score],[data-os-flag-toggle],[data-os-flag-remove]') : null;
+    const target = event.target instanceof Element ? event.target.closest('[data-os-action],[data-os-mode],[data-os-section],[data-os-quick-template],[data-os-remove-participant],[data-os-remove-entity],[data-os-status-toggle],[data-os-remove-status],[data-os-tracker-delta],[data-os-remove-tracker],[data-os-phase-active],[data-os-phase-check],[data-os-remove-phase],[data-os-remove-team],[data-os-role-reveal],[data-os-role-clear],[data-os-remove-score],[data-os-flag-toggle],[data-os-flag-remove]') : null;
     if (!target) return;
     const d = target.dataset;
     if (d.osAction === 'close') { if (event.target.closest('.tableos-sheet') && !event.target.closest('[data-os-action="close"]')) return; closeTableOs(); return; }
@@ -726,6 +733,7 @@ function bindEvents() {
     if (d.osAction === 'prev-phase') { advancePhase(state, -1); persist(); render(); return; }
     if (d.osAction === 'next-phase') { advancePhase(state, 1); persist(); render(); return; }
     if (d.osPhaseActive !== undefined) { setActivePhase(state, Number(d.osPhaseActive)); persist(); render(); return; }
+    if (d.osPhaseCheck) { const [phaseId, itemId] = d.osPhaseCheck.split('|'); togglePhaseChecklistItem(state, phaseId, itemId); persist(); render(); return; }
     if (d.osRemovePhase) { removePhase(state, d.osRemovePhase); persist(); render(); return; }
     if (d.osAction === 'add-team') { if (!addTeam(state, tr('customTeam'))) flash(tr('limit')); else { persist(); render(); } return; }
     if (d.osRemoveTeam) { removeTeam(state, d.osRemoveTeam); persist(); render(); return; }
@@ -769,6 +777,7 @@ function bindEvents() {
     if (d.osTrackerValue) { const [trackerId, entityId] = d.osTrackerValue.split('|'); setTrackerValue(state, trackerId, entityId, Number(element.value)); persist(); render(); return; }
     if (d.osPhaseName) { const phase = state.phases.items.find(item => item.id === d.osPhaseName); if (phase) phase.name = element.value.trim().slice(0, 32) || tr('customPhase'); saveAndRender(); return; }
     if (d.osPhaseNote) { const phase = state.phases.items.find(item => item.id === d.osPhaseNote); if (phase) phase.note = element.value.trim().slice(0, 120); persist(); return; }
+    if (d.osPhaseChecklist) { setPhaseChecklistFromText(state, d.osPhaseChecklist, element.value); persist(); return; }
     if (d.osTeamName) { const team = state.teams.find(item => item.id === d.osTeamName); if (team) team.name = element.value.trim().slice(0, 28) || tr('customTeam'); saveAndRender(); return; }
     if (d.osTeamMember) { const [teamId, participantId] = d.osTeamMember.split('|'); toggleTeamMember(state, teamId, participantId); persist(); render(); return; }
     if (d.osRoleName) { setRolePart(d.osRoleName, 'role', element.value); persist(); return; }
