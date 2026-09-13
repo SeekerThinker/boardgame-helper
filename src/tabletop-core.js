@@ -53,14 +53,16 @@ function scoreKey(value, index = 0) {
     .replace(/_+/g, '_')
     .replace(/^_+|_+$/g, '')
     .slice(0, 24);
-  return cleaned || `field_${index + 1}`;
+  if (!cleaned) return `field_${index + 1}`;
+  return /^[a-z_]/.test(cleaned) ? cleaned : `field_${cleaned}`.slice(0, 24);
 }
 
 function uniqueKey(candidate, used) {
   let next = candidate;
   let suffix = 2;
   while (used.has(next)) {
-    next = `${candidate}_${suffix}`.slice(0, 24);
+    const ending = `_${suffix}`;
+    next = `${candidate.slice(0, Math.max(1, 24 - ending.length))}${ending}`;
     suffix += 1;
   }
   used.add(next);
@@ -856,6 +858,26 @@ export function addScoreSheetField(state, { name = 'Field', key = '', kind = 'ma
   state.scoreSheet.fields.push(field);
   touch(state);
   return field;
+}
+
+export function setScoreSheetFieldKey(state, fieldId, value = '') {
+  const index = state.scoreSheet.fields.findIndex(field => field.id === fieldId);
+  if (index < 0) return null;
+  const field = state.scoreSheet.fields[index];
+  const used = new Set(state.scoreSheet.fields.filter(item => item.id !== fieldId).map(item => item.key));
+  const nextKey = uniqueKey(scoreKey(value || field.name, index), used);
+  const previousKey = field.key;
+  if (previousKey === nextKey) return nextKey;
+  field.key = nextKey;
+  if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(previousKey || '')) {
+    state.scoreSheet.fields.forEach(candidate => {
+      if (candidate.kind === 'formula' && candidate.formula) {
+        candidate.formula = text(candidate.formula.replace(/[A-Za-z_][A-Za-z0-9_]*/g, token => token === previousKey ? nextKey : token), 120);
+      }
+    });
+  }
+  touch(state);
+  return nextKey;
 }
 
 export function removeScoreSheetField(state, fieldId) {

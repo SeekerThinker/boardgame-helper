@@ -28,6 +28,7 @@ The following are release blockers rather than optional polish:
 - Play mode must not expose template selectors, score formula configuration or roster edit fields.
 - Advanced configuration must remain reachable in one action through Edit mode.
 - Existing basic timer/scoring flows must remain unchanged by Table OS work.
+- ScoreSheet variable keys must remain formula-safe and unique; renaming a variable must migrate exact formula references so configuration edits cannot silently change scores.
 - Removing a phase before the current live phase must preserve that active phase by identity; removing the active phase selects the nearest surviving phase without changing the cycle.
 
 The production Android signing key, Apple distribution identity/profile and store-console metadata remain external release prerequisites and are not fabricated by CI.
@@ -59,3 +60,10 @@ The production Android signing key, Apple distribution identity/profile and stor
 
 - Unit: deleting a phase before the active phase preserves the same active phase identity after indexes shift; deleting the active phase selects the next neighbor or previous phase when removing the last item.
 - Chromium: deleting an earlier phase in Edit setup does not silently advance the live table to a different phase.
+
+
+### Score variable rename safety
+
+- Unit: duplicate 24-character keys terminate safely with a unique suffix; variable names are normalized to formula-safe identifiers.
+- Unit: renaming a ScoreSheet variable rewrites exact formula references, resolves collisions deterministically, and preserves calculated results.
+- Chromium: Edit setup can rename two variables to the same requested name; the UI shows unique keys, updates the formula text, and keeps the live calculated score unchanged.

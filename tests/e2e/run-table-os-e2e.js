@@ -200,6 +200,20 @@ async function runPrimaryFlow() {
   await page.getByRole('button', { name: '计分表', exact: true }).click();
   assert.equal(await page.locator('.tableos-score-table > article').first().locator('output').last().textContent(), '5', 'unary formula syntax works through the live score sheet');
 
+  // Score variable renames stay unique and migrate formula references instead of silently changing results.
+  await editMode(page);
+  await page.getByRole('button', { name: '计分表', exact: true }).click();
+  await page.locator('[data-os-score-key]').nth(0).fill('points');
+  await page.locator('[data-os-score-key]').nth(0).blur();
+  await page.locator('[data-os-score-key]').nth(1).fill('points');
+  await page.locator('[data-os-score-key]').nth(1).blur();
+  const renamedKeys = await page.locator('[data-os-score-key]').evaluateAll(elements => elements.map(element => element.value));
+  assert.deepEqual(renamedKeys.slice(0, 2), ['points', 'points_2'], 'duplicate score variables are made unique');
+  assert.equal(await page.locator('[data-os-score-formula]').first().inputValue(), '-(points + points_2) / -2 + objective - penalty', 'formula references migrate with variable renames');
+  await page.getByRole('button', { name: '牌局模式' }).click();
+  await page.getByRole('button', { name: '计分表', exact: true }).click();
+  assert.equal(await page.locator('.tableos-score-table > article').first().locator('output').last().textContent(), '5', 'variable renames preserve the live formula result');
+
   // A focused live value is flushed synchronously before page lifecycle interruption, even without blur/change.
   const interruptedScore = page.locator('[data-os-score-value]').first();
   const interruptedScoreKey = await interruptedScore.getAttribute('data-os-score-value');
