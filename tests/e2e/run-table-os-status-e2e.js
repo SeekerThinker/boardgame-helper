@@ -110,6 +110,30 @@ async function runStatusFlow() {
   await page.getByRole('button', { name: '状态', exact: true }).click();
   assert.equal(await page.locator('.tableos-module').filter({ hasText: '目标完成' }).first().locator('[data-os-status-toggle]').first().getAttribute('aria-pressed'), 'true', 'live status survives reload within the same session');
 
+  await page.evaluate(() => {
+    const key = 'board-game-assistant-table-os-v1';
+    const stored = JSON.parse(localStorage.getItem(key));
+    const participantId = stored.participants[0]?.id;
+    if (!participantId) throw new Error('Expected a participant for stale-entity normalization regression');
+    stored.teams = [{ id: 'team_current', name: 'Current', memberIds: [participantId] }];
+    stored.trackers.push({
+      id: 'prune_team_tracker', name: 'Prune team tracker', scope: 'team', persistence: 'session',
+      min: 0, max: 99, step: 1, initial: 2, values: { team_current: 5, team_retired: 8 }
+    });
+    stored.statuses.push({
+      id: 'prune_player_status', name: 'Prune player status', scope: 'participant', initial: false,
+      values: { [participantId]: true, tp_retired: true }
+    });
+    localStorage.setItem(key, JSON.stringify(stored));
+  });
+  await page.reload({ waitUntil: 'networkidle' });
+  const prunedReload = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1')));
+  const reloadParticipantId = prunedReload.participants[0].id;
+  assert.deepEqual(prunedReload.trackers.find(item => item.id === 'prune_team_tracker').values, { team_current: 5 }, 'reload prunes stale team-scoped tracker values');
+  assert.deepEqual(prunedReload.statuses.find(item => item.id === 'prune_player_status').values, { [reloadParticipantId]: true }, 'reload prunes stale participant-scoped status values');
+  assert.equal(JSON.stringify(prunedReload).includes('team_retired'), false, 'retired team ids do not survive reload normalization');
+  assert.equal(JSON.stringify(prunedReload).includes('tp_retired'), false, 'retired participant ids do not survive reload normalization');
+
   assert.deepEqual(errors, [], `browser should stay error-free: ${errors.join(' | ')}`);
   await context.close();
 }
@@ -122,7 +146,7 @@ async function run() {
   }
   browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
   await runStatusFlow();
-  console.log(JSON.stringify({ event: 'table-os-status-e2e-summary', status: 'PASS', checks: ['built-in statuses', 'toggle persistence', 'scenario reset defaults', 'custom status', 'My Templates status privacy', 'reload persistence'] }, null, 2));
+  console.log(JSON.stringify({ event: 'table-os-status-e2e-summary', status: 'PASS', checks: ['built-in statuses', 'toggle persistence', 'scenario reset defaults', 'custom status', 'My Templates status privacy', 'reload persistence', 'stale entity cleanup on reload'] }, null, 2));
 }
 
 run().catch(error => { console.error(error.stack || error.message || error); process.exitCode = 1; }).finally(async () => {
