@@ -839,6 +839,29 @@ function resetTimerFlow() {
   render();
 }
 
+function loadPhaseTimerFromTableOs(detail = {}) {
+  const requested = Number(detail?.seconds);
+  if (!Number.isFinite(requested) || requested <= 0) return false;
+  const seconds = clamp(Math.round(requested), 5, 86400);
+  if (state.session.status === 'finished') {
+    showToast('timer.finishedLocked');
+    render();
+    return false;
+  }
+  if (state.timer.running && !confirm(tr('timer.phaseTimerReplaceRunning', { time: formatClock(seconds) }))) return false;
+
+  pauseTimer(state);
+  cancelTimerNotification();
+  state.timer.mode = 'round';
+  state.timer.baseSeconds = seconds;
+  state.timer.remainingSeconds = seconds;
+  state.timer.timeoutHandled = false;
+  if (state.screen === 'workspace') state.activeTool = 'flow';
+  showToast('timer.phaseTimerLoaded', { time: formatClock(seconds) });
+  render();
+  return true;
+}
+
 function finishTurnFlow() {
   if (state.session.status === 'finished') return;
   pauseTimer(state);
@@ -1187,6 +1210,11 @@ document.addEventListener('keydown', event => {
   const active = document.activeElement;
   if (event.shiftKey && (active === first || !sheet.contains(active))) { event.preventDefault(); last.focus({ preventScroll: true }); }
   else if (!event.shiftKey && active === last) { event.preventDefault(); first.focus({ preventScroll: true }); }
+});
+
+document.addEventListener('boardgame-helper:phase-timer', event => {
+  const detail = event instanceof CustomEvent ? event.detail : {};
+  if (!loadPhaseTimerFromTableOs(detail)) event.preventDefault();
 });
 
 setSoundOn(state.settings.soundOn);

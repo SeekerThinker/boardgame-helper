@@ -82,3 +82,6 @@ The production Android signing key, Apple distribution identity/profile and stor
 - Unit: ordered pasted assignments are bounded by the current participant roster and empty input is non-destructive.
 - Unit/privacy: whole-list replacement clears retired moderator notes so old hidden context cannot attach to new characters or survive serialization/export.
 - Chromium: Edit setup replaces a four-player identity/faction list in one action, keeps the existing two-stage reveal flow, and proves the retired moderator note is absent from persisted assignments and the player reveal DOM.
+
+| Phase timer bridge | Configure an active phase duration, verify Play mode exposes an explicit load action, start the main timer, cancel replacement and verify it remains untouched, then accept replacement and verify `round` mode is prepared at the phase duration without auto-starting or erasing pool/chess values | Chromium E2E + unit |
+| Phase timer template/privacy boundary | Normalize old phase data to `timerSeconds: 0`; bound duration to 0–86400; save/apply My Template duration only; verify no main-timer runtime fields enter My Templates and new-scenario reset preserves phase timer structure | Unit |

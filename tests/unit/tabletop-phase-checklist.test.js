@@ -58,7 +58,7 @@ test('normalization accepts older phases and sanitizes checklist data', () => {
   });
   assert.deepEqual(state.phases.items[0].checklist, [], 'old phase data receives an empty checklist');
   assert.deepEqual(state.phases.items[1].checklist.map(item => [item.label, item.done]), [['Pay cost', false], ['Gain reward', true]]);
-  assert.equal(state.schemaVersion, 5);
+  assert.equal(state.schemaVersion, 6);
 });
 
 test('My Templates keep phase checklist structure but never live completion progress', () => {

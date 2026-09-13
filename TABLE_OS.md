@@ -258,3 +258,9 @@ Table OS has a dedicated **Statuses / 状态** surface for boolean table state t
 Examples include Alive, Poisoned, Stunned, Ready, and Objective complete. Card Battle starts with Poisoned/Stunned toggles, while Hidden Roles starts with Alive enabled for each participant.
 
 Statuses are session state. **My Templates** save only the reusable status definition (name, scope, default), never current on/off values. Campaign-persistent information should continue to use campaign trackers, checkpoints, or notes rather than status toggles.
+
+## Phase timer bridge
+
+Each phase can optionally define a timer duration in seconds (`0` means no configured timer). Phase changes never mutate the main timer automatically. In Play mode, the active phase exposes **Load main timer** only when a duration is configured. Loading is explicit: it prepares the main app's shared `round` / discussion timer at that duration, leaves it paused, and preserves the stored shared-pool and personal chess-clock values. If the main timer is currently running, replacement requires confirmation; canceling leaves the timer and Table OS open unchanged.
+
+My Templates store only the phase timer duration as reusable phase structure. They never store main-timer runtime state such as running/deadline/remaining values. New scenario / rematch preserves the configured phase durations.
