@@ -1,6 +1,9 @@
 name: Migrate entity template confirmation
 
 on:
+  push:
+    branches:
+      - fix/table-os-entity-template-confirmation
   workflow_dispatch:
 
 permissions:
@@ -8,6 +11,7 @@ permissions:
 
 jobs:
   migrate:
+    if: ${{ !startsWith(github.event.head_commit.message || '', 'fix: disclose table entity resets before template apply') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
