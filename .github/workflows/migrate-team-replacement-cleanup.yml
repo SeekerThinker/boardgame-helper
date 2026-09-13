@@ -23,6 +23,8 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Apply migration
         run: node scripts/migrate-team-replacement-cleanup.mjs
+      - name: Repair generated companion fixture
+        run: sed -i "s/values: { old_team: true }],/values: { old_team: true } }],/" tests/e2e/run-table-os-companion-e2e.js
       - name: Validate
         run: npm run check
       - name: Commit validated feature tree
