@@ -1,2 +1,19 @@
 from pathlib import Path
-print(Path('package.json').exists())
+p=Path('src/tabletop.js')
+s=p.read_text()
+def one(a,b):
+    global s
+    if s.count(a)!=1: raise SystemExit(f'ui-b {s.count(a)}')
+    s=s.replace(a,b,1)
+helper='''function renderEntitiesCard() {
+  const rows = state.entities.map(entity => state.ui.mode === 'edit'
+    ? `<article class="tableos-phase"><span class="tableos-phase-index">◆</span><div><input value="${attr(entity.name)}" data-os-entity-name="${entity.id}" maxlength="32"></div><button class="tableos-mini danger" type="button" data-os-remove-entity="${entity.id}" aria-label="${attr(tr('remove'))}">×</button></article>`
+    : `<article class="tableos-phase tableos-phase-live"><span class="tableos-phase-index">◆</span><div><strong>${esc(entity.name)}</strong></div></article>`).join('');
+  return `<section class="tableos-card"><div class="tableos-card-head"><div><span>${esc(tr('entities'))}</span><h3>${state.entities.length} / ${MAX_ENTITIES}</h3></div>${state.ui.mode === 'edit' ? `<button class="tableos-btn" type="button" data-os-action="add-entity">${esc(tr('addEntity'))}</button>` : ''}</div>${state.ui.mode === 'edit' ? `<p class="tableos-help">${esc(tr('entityHelp'))}</p>` : ''}<div class="tableos-phase-list">${rows || `<p class="tableos-empty">${esc(tr('noEntities'))}</p>`}</div></section>`;
+}
+
+'''
+one('function renderOverview() {', helper+'function renderOverview() {')
+one('    </section>`;\n}\n\nfunction statusEntityName', '    </section>${renderEntitiesCard()}`;\n}\n\nfunction statusEntityName')
+one("  if (status.scope === 'team') return teamById(entityId)?.name || entityId;\n  return tr('global');", "  if (status.scope === 'team') return teamById(entityId)?.name || entityId;\n  if (status.scope === 'entity') return tableEntityById(entityId)?.name || entityId;\n  return tr('global');")
+p.write_text(s)
