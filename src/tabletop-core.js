@@ -745,9 +745,17 @@ export function addPhase(state, name = '') {
 export function removePhase(state, phaseId) {
   const index = state.phases.items.findIndex(item => item.id === phaseId);
   if (index < 0) return false;
+  const activePhaseId = state.phases.items[state.phases.activeIndex]?.id || null;
+  const removingActivePhase = activePhaseId === phaseId;
   state.phases.items.splice(index, 1);
   if (!state.phases.items.length) state.phases.activeIndex = 0;
-  else state.phases.activeIndex = Math.min(state.phases.activeIndex, state.phases.items.length - 1);
+  else if (removingActivePhase) state.phases.activeIndex = Math.min(index, state.phases.items.length - 1);
+  else {
+    const preservedIndex = state.phases.items.findIndex(item => item.id === activePhaseId);
+    state.phases.activeIndex = preservedIndex >= 0
+      ? preservedIndex
+      : Math.min(state.phases.activeIndex, state.phases.items.length - 1);
+  }
   touch(state);
   return true;
 }
