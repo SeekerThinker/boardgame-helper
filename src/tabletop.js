@@ -6,7 +6,7 @@ import {
   addTracker, removeTracker, trackerEntityIds, trackerValue, adjustTracker, setTrackerValue, setTrackerPersistence,
   addStatus, removeStatus, statusEntityIds, statusValue, toggleStatus,
   addPhase, removePhase, setActivePhase, advancePhase,
-  addTeam, replaceTeams, removeTeam, toggleTeamMember, setRole, clearRole, roleForParticipant,
+  addTeam, replaceTeams, removeTeam, toggleTeamMember, setRole, replaceCharacterAssignmentsFromText, clearRole, roleForParticipant,
   addScoreSheetField, setScoreSheetFieldKey, removeScoreSheetField, setScoreSheetValue, scoreCardForParticipant,
   addCampaignFlag, toggleCampaignFlag, removeCampaignFlag,
   normalizeUserTemplate, createUserTemplateFromState, applyUserTemplate,
@@ -32,7 +32,7 @@ const I18N = {
     persistence: '保留到', sessionOnly: '本局', campaignPersist: '战役', noTrackers: '当前没有追踪器。',
     addStatus: '添加状态', noStatuses: '还没有状态开关。', statusHint: '状态是轻量开关；“新场景 / 下一局”会恢复到默认值。', defaultOn: '默认开启', customStatus: '新状态', on: '开启', off: '关闭',
     addPhase: '添加阶段', cycle: '循环', previous: '上一步', next: '下一步', noPhases: '当前没有阶段。', phaseNote: '备注', openTimer: '去主计时器',
-    addTeam: '添加团队', noTeams: '当前没有团队。', members: '成员', role: '身份', faction: '阵营', secret: '私密', note: '主持备注', reveal: '交给玩家查看', hide: '看完了', clear: '清除',
+    addTeam: '添加团队', noTeams: '当前没有团队。', members: '成员', role: '身份', faction: '阵营', secret: '私密', note: '主持备注', reveal: '交给玩家查看', hide: '看完了', clear: '清除', bulkCharacters: '批量设置身份', bulkCharactersHelp: '每行对应一位参与者（按当前顺序）；可写“身份 | 阵营”或用制表符分隔。应用后会替换全部身份/阵营并清除旧主持备注；玩家查看流程保持不变。', bulkCharactersPlaceholder: '预言家 | 村民\n狼人 | 狼人阵营\n守卫 | 村民', replaceCharacters: '替换身份列表', charactersReplaced: '已批量设置身份：', bulkCharactersEmpty: '没有可应用的身份。', confirmBulkCharacters: '这会替换全部现有身份/阵营并清除旧主持备注。继续吗？',
     adoptTeams: '采用工具箱分队', noRandomTeams: '工具箱里还没有随机分队结果。', teamsAdopted: '已采用工具箱最近一次分队。',
     addScoreField: '添加计分栏', addFormula: '添加公式栏', fieldName: '栏位', key: '变量', formula: '公式', effect: '计入', total: '总分', included: '计入总分', excluded: '仅显示',
     noScoreFields: '当前没有计分栏。', formulaHelp: '公式支持变量、数字、+ − × ÷ 和括号，例如 base + bonus - penalty。',
@@ -60,7 +60,7 @@ const I18N = {
     persistence: 'Keep for', sessionOnly: 'Session', campaignPersist: 'Campaign', noTrackers: 'No trackers yet.',
     addStatus: 'Add status', noStatuses: 'No status toggles yet.', statusHint: 'Statuses are lightweight toggles; New scenario / rematch restores their defaults.', defaultOn: 'Default on', customStatus: 'New status', on: 'On', off: 'Off',
     addPhase: 'Add phase', cycle: 'Cycle', previous: 'Previous', next: 'Next', noPhases: 'No phases yet.', phaseNote: 'Note', openTimer: 'Open main timer',
-    addTeam: 'Add team', noTeams: 'No teams yet.', members: 'Members', role: 'Role', faction: 'Faction', secret: 'Private', note: 'Moderator note', reveal: 'Pass to player', hide: 'Done', clear: 'Clear',
+    addTeam: 'Add team', noTeams: 'No teams yet.', members: 'Members', role: 'Role', faction: 'Faction', secret: 'Private', note: 'Moderator note', reveal: 'Pass to player', hide: 'Done', clear: 'Clear', bulkCharacters: 'Paste character list', bulkCharactersHelp: 'One line per participant in current order. Use “Role | Faction” or a tab separator. Applying replaces all assignments and clears old moderator notes; player reveal behavior stays unchanged.', bulkCharactersPlaceholder: 'Seer | Town\nWolf | Wolves\nGuard | Town', replaceCharacters: 'Replace character list', charactersReplaced: 'Assignments applied:', bulkCharactersEmpty: 'No assignments to apply.', confirmBulkCharacters: 'This replaces all existing assignments and clears old moderator notes. Continue?',
     adoptTeams: 'Use toolbox teams', noRandomTeams: 'There is no recent random-team result in the toolbox.', teamsAdopted: 'Latest toolbox teams adopted.',
     addScoreField: 'Add score field', addFormula: 'Add formula', fieldName: 'Field', key: 'Variable', formula: 'Formula', effect: 'Effect', total: 'Total', included: 'Included', excluded: 'Display only',
     noScoreFields: 'No score fields yet.', formulaHelp: 'Formulas support variables, numbers, + − × ÷ and parentheses, e.g. base + bonus - penalty.',
@@ -518,6 +518,7 @@ function renderTeamsRoles() {
       ${state.teams.map(team => `<article class="tableos-team"><div class="tableos-module-head"><input value="${attr(team.name)}" data-os-team-name="${team.id}" maxlength="28"><button class="tableos-mini danger" type="button" data-os-remove-team="${team.id}">×</button></div><div class="tableos-check-grid">${state.participants.map(participant => `<label><input type="checkbox" data-os-team-member="${team.id}|${participant.id}" ${team.memberIds.includes(participant.id) ? 'checked' : ''}><span>${esc(participant.name)}</span></label>`).join('') || esc(tr('emptyParticipants'))}</div></article>`).join('') || `<p class="tableos-empty">${esc(tr('noTeams'))}</p>`}
     </section>
     <section class="tableos-card"><div class="tableos-card-head"><div><span>${esc(tr('role'))}</span><h3>${state.roles.length} / ${state.participants.length}</h3></div></div>
+      <details class="tableos-module"><summary><strong>${esc(tr('bulkCharacters'))}</strong></summary><p class="tableos-help">${esc(tr('bulkCharactersHelp'))}</p><textarea rows="6" maxlength="2600" data-os-bulk-characters aria-label="${attr(tr('bulkCharacters'))}" placeholder="${attr(tr('bulkCharactersPlaceholder'))}"></textarea><div class="tableos-inline-actions"><button class="tableos-btn primary" type="button" data-os-action="replace-characters">${esc(tr('replaceCharacters'))}</button></div></details>
       <div class="tableos-stack">${state.participants.map(participant => { const role = roleForParticipant(state, participant.id) || { role: '', faction: '', note: '', secret: true }; return `<article class="tableos-role"><strong>${esc(participant.name)}</strong><div class="tableos-form-grid"><label>${esc(tr('role'))}<input value="${attr(role.role)}" data-os-role-name="${participant.id}" maxlength="40"></label><label>${esc(tr('faction'))}<input value="${attr(role.faction)}" data-os-role-faction="${participant.id}" maxlength="32"></label><label class="wide">${esc(tr('note'))}<input value="${attr(role.note)}" data-os-role-note="${participant.id}" maxlength="160"></label><label class="checkbox"><input type="checkbox" data-os-role-secret="${participant.id}" ${role.secret ? 'checked' : ''}> ${esc(tr('secret'))}</label></div><div class="tableos-inline-actions"><button class="tableos-btn" type="button" data-os-role-reveal="${participant.id}">${esc(tr('reveal'))}</button><button class="tableos-btn danger" type="button" data-os-role-clear="${participant.id}">${esc(tr('clear'))}</button></div></article>`; }).join('') || `<p class="tableos-empty">${esc(tr('emptyParticipants'))}</p>`}</div>
     </section>
   </div>`;
@@ -710,6 +711,17 @@ function bindEvents() {
     if (d.osRemovePhase) { removePhase(state, d.osRemovePhase); persist(); render(); return; }
     if (d.osAction === 'add-team') { if (!addTeam(state, tr('customTeam'))) flash(tr('limit')); else { persist(); render(); } return; }
     if (d.osRemoveTeam) { removeTeam(state, d.osRemoveTeam); persist(); render(); return; }
+    if (d.osAction === 'replace-characters') {
+      const input = document.querySelector('[data-os-bulk-characters]');
+      const raw = input instanceof HTMLTextAreaElement ? input.value : '';
+      if (!raw.split(/\r?\n/).some(line => line.trim())) { flash(tr('bulkCharactersEmpty')); return; }
+      if (state.roles.length && !confirm(tr('confirmBulkCharacters'))) return;
+      const result = replaceCharacterAssignmentsFromText(state, raw);
+      if (!result.changed) { flash(tr('bulkCharactersEmpty')); return; }
+      persist();
+      flash(`${tr('charactersReplaced')} ${result.assigned}${result.limitReached ? ` · ${tr('limit')}` : ''}`);
+      return;
+    }
     if (d.osRoleReveal) { roleRevealReturnId = d.osRoleReveal; revealedParticipantId = d.osRoleReveal; revealArmed = false; render(); focusRoleReveal(); return; }
     if (d.osRoleClear) { clearRole(state, d.osRoleClear); persist(); render(); return; }
     if (d.osAction === 'add-score-field') { if (!addScoreSheetField(state, { name: tr('customField'), key: `field_${state.scoreSheet.fields.length + 1}` })) flash(tr('limit')); else { persist(); render(); } return; }
