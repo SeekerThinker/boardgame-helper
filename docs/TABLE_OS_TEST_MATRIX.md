@@ -35,3 +35,8 @@ The production Android signing key, Apple distribution identity/profile and stor
 - Unit: normalization from older schema, entity validation/pruning, shelf limit, default restoration on new scenario, localized built-in statuses.
 - Unit: My Templates preserve status definitions but exclude live values and participant identifiers.
 - Chromium: Card Battle Poisoned/Stunned toggles, Hidden Roles Alive default, new-scenario reset, custom global status, template privacy/fresh apply, and same-session reload persistence.
+
+### Team replacement cleanup
+
+- Unit: replacing the whole team roster creates fresh team identities, keeps only valid participant membership, and clears retired team-scoped Tracker/Status overrides before persistence/export.
+- Chromium: adopting toolbox teams removes retired team IDs and hidden live values; replacement teams render the Tracker/Status defaults instead.

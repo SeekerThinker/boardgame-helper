@@ -278,6 +278,82 @@ async function runSessionLifecycleFlow() {
   await context.close();
 }
 
+async function runTeamReplacementCleanupFlow() {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US' });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('dialog', dialog => dialog.accept());
+
+  await page.goto(url, { waitUntil: 'networkidle' });
+  await page.evaluate(() => localStorage.clear());
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.locator('[data-action="start-session"]').click();
+
+  await page.evaluate(() => {
+    const gameKey = 'board-game-assistant-state-v2';
+    const tableKey = 'board-game-assistant-table-os-v1';
+    const game = JSON.parse(localStorage.getItem(gameKey));
+    if (!Array.isArray(game?.players) || game.players.length < 2) throw new Error('Expected at least two main-game players');
+    const players = game.players.slice(0, 2);
+    localStorage.setItem(tableKey, JSON.stringify({
+      schemaVersion: 3,
+      participants: players.map((player, index) => ({
+        id: `tp_seed_${index + 1}`,
+        sourcePlayerId: String(player.id),
+        name: player.name,
+        color: player.color
+      })),
+      teams: [{ id: 'old_team', name: 'Old Team', memberIds: ['tp_seed_1', 'tp_seed_2'] }],
+      trackers: [{
+        id: 'team_tracker', name: 'Team score', scope: 'team', initial: 2, value: 2, min: 0, max: 99, step: 1,
+        persistence: 'campaign', values: { old_team: 9 }
+      }],
+      statuses: [{ id: 'team_status', name: 'Ready', scope: 'team', initial: false, values: { old_team: true } }],
+      ui: { mode: 'play', activeSection: 'overview' }
+    }));
+  });
+
+  await page.reload({ waitUntil: 'networkidle' });
+  await openTableOs(page);
+  await page.getByRole('button', { name: 'Edit setup', exact: true }).click();
+  await page.getByRole('button', { name: 'Teams & roles', exact: true }).click();
+  await page.evaluate(() => {
+    const gameKey = 'board-game-assistant-state-v2';
+    const game = JSON.parse(localStorage.getItem(gameKey));
+    const players = game.players.slice(0, 2);
+    game.tools = game.tools && typeof game.tools === 'object' ? game.tools : {};
+    game.tools.teams = [
+      { index: 0, playerIds: [players[0].id] },
+      { index: 1, playerIds: [players[1].id] }
+    ];
+    localStorage.setItem(gameKey, JSON.stringify(game));
+  });
+  await page.getByRole('button', { name: 'Use toolbox teams', exact: true }).click();
+  await page.getByText('Latest toolbox teams adopted.', { exact: true }).waitFor({ state: 'visible' });
+
+  const replaced = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1')));
+  assert.equal(replaced.teams.length, 2);
+  assert.ok(replaced.teams.every(team => team.id !== 'old_team'), 'toolbox adoption creates fresh team identities');
+  assert.deepEqual(replaced.trackers.find(tracker => tracker.id === 'team_tracker')?.values, {}, 'old team tracker values are not retained');
+  assert.deepEqual(replaced.statuses.find(status => status.id === 'team_status')?.values, {}, 'old team status values are not retained');
+  assert.equal(JSON.stringify(replaced).includes('old_team'), false, 'retired team ids do not survive persistence');
+
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await page.getByRole('button', { name: 'Statuses', exact: true }).click();
+  const readyButtons = page.locator('.tableos-module').filter({ hasText: 'Ready' }).locator('[data-os-status-toggle]');
+  assert.equal(await readyButtons.count(), 2);
+  for (let index = 0; index < 2; index += 1) assert.equal(await readyButtons.nth(index).getAttribute('aria-pressed'), 'false');
+
+  await page.getByRole('button', { name: 'Trackers', exact: true }).click();
+  const trackerValues = await page.locator('.tableos-module').filter({ hasText: 'Team score' }).locator('[data-os-tracker-value]').evaluateAll(inputs => inputs.map(input => input.value));
+  assert.deepEqual(trackerValues, ['2', '2'], 'replacement teams start from tracker defaults');
+
+  assert.equal(errors.length, 0, `Table OS team replacement console errors: ${errors.join(' | ')}`);
+  await context.close();
+}
+
 async function runTouchTargetSmoke() {
   const context = await browser.newContext({ viewport: { width: 320, height: 568 }, locale: 'zh-CN' });
   const page = await context.newPage();
@@ -309,6 +385,7 @@ async function run() {
   await runPrimaryFlow();
   await runQuietLifecycleFlow();
   await runSessionLifecycleFlow();
+  await runTeamReplacementCleanupFlow();
   await runTouchTargetSmoke();
 
   console.log(JSON.stringify({
@@ -320,6 +397,7 @@ async function run() {
       'ordinary phase undo', 'main-timer bridge', 'contextual accessibility labels',
       'quiet empty rematch', 'new-session detection', 'keep-current lifecycle choice',
       'safe rematch reset', 'campaign tracker persistence across rematch', 'transient state reset across rematch',
+      'toolbox re-team stale-value cleanup', 'fresh team defaults after replacement',
       '44px live touch targets', '320px overflow'
     ]
   }, null, 2));

@@ -6,7 +6,7 @@ import {
   addTracker, removeTracker, trackerEntityIds, trackerValue, adjustTracker, setTrackerValue, setTrackerPersistence,
   addStatus, removeStatus, statusEntityIds, statusValue, toggleStatus,
   addPhase, removePhase, setActivePhase, advancePhase,
-  addTeam, removeTeam, toggleTeamMember, setRole, clearRole, roleForParticipant,
+  addTeam, replaceTeams, removeTeam, toggleTeamMember, setRole, clearRole, roleForParticipant,
   addScoreSheetField, removeScoreSheetField, setScoreSheetValue, scoreCardForParticipant,
   addCampaignFlag, toggleCampaignFlag, removeCampaignFlag,
   normalizeUserTemplate, createUserTemplateFromState, applyUserTemplate,
@@ -629,12 +629,11 @@ function adoptRandomTeams() {
   const sourceTeams = Array.isArray(game?.tools?.teams) ? game.tools.teams : [];
   if (!sourceTeams.length) { flash(tr('noRandomTeams')); return; }
   const bySource = new Map(state.participants.filter(item => item.sourcePlayerId).map(item => [item.sourcePlayerId, item.id]));
-  state.teams = [];
-  sourceTeams.slice(0, MAX_TEAMS).forEach((sourceTeam, index) => {
-    const team = addTeam(state, locale() === 'zh' ? `${index + 1}队` : `Team ${index + 1}`);
-    if (!team) return;
-    team.memberIds = (Array.isArray(sourceTeam.playerIds) ? sourceTeam.playerIds : []).map(id => bySource.get(String(id))).filter(Boolean);
-  });
+  const teams = sourceTeams.slice(0, MAX_TEAMS).map((sourceTeam, index) => ({
+    name: locale() === 'zh' ? `${index + 1}队` : `Team ${index + 1}`,
+    memberIds: (Array.isArray(sourceTeam.playerIds) ? sourceTeam.playerIds : []).map(id => bySource.get(String(id))).filter(Boolean)
+  }));
+  replaceTeams(state, teams);
   persist();
   flash(tr('teamsAdopted'));
 }

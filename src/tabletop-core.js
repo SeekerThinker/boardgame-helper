@@ -750,6 +750,19 @@ export function addTeam(state, name = '') {
   return team;
 }
 
+export function replaceTeams(state, teams = []) {
+  const validParticipantIds = new Set(state.participants.map(participant => participant.id));
+  const source = Array.isArray(teams) ? teams : [];
+  state.teams = normalizeTeams(source.map(team => ({
+    ...(team && typeof team === 'object' ? team : {}),
+    id: uid('team_')
+  })), validParticipantIds);
+  state.trackers.forEach(tracker => { if (tracker.scope === 'team') tracker.values = {}; });
+  state.statuses.forEach(status => { if (status.scope === 'team') status.values = {}; });
+  touch(state);
+  return state.teams;
+}
+
 export function removeTeam(state, teamId) {
   const index = state.teams.findIndex(team => team.id === teamId);
   if (index < 0) return false;
