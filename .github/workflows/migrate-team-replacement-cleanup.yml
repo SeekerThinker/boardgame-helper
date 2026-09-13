@@ -23,19 +23,6 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Apply migration
         run: node scripts/migrate-team-replacement-cleanup.mjs
-      - name: Repair generated companion fixture
-        run: |
-          sed -i 's/values: { old_team: true }],/values: { old_team: true } }],/' tests/e2e/run-table-os-companion-e2e.js
-          python - <<'PY'
-          from pathlib import Path
-          path = Path('tests/e2e/run-table-os-companion-e2e.js')
-          source = path.read_text()
-          needle = "  assert.equal(JSON.stringify(replaced).includes('old_team'), false, 'retired team ids do not survive persistence');\n\n  await page.getByRole('button', { name: 'Statuses', exact: true }).click();"
-          replacement = "  assert.equal(JSON.stringify(replaced).includes('old_team'), false, 'retired team ids do not survive persistence');\n\n  await page.getByRole('button', { name: 'Play', exact: true }).click();\n  await page.getByRole('button', { name: 'Statuses', exact: true }).click();"
-          if needle not in source:
-              raise SystemExit('expected live-view fixture marker not found')
-          path.write_text(source.replace(needle, replacement, 1))
-          PY
       - name: Validate
         run: npm run check
       - name: Commit validated feature tree
