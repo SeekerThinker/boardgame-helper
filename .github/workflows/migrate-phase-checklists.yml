@@ -20,6 +20,8 @@ jobs:
         run: sed -i 's/, destructive template disclosure for entity reset//' docs/TABLE_OS_TEST_MATRIX.md
       - name: Apply focused patch
         run: python .github/tmp/add-phase-checklists.py
+      - name: Fix generated Chromium details interaction
+        run: python .github/tmp/fix-phase-checklist-e2e.py
       - name: Restore entity-reset gate wording
         run: sed -i 's/campaign survival across built-in\/My Template changes, local My Templates/campaign survival across built-in\/My Template changes, destructive template disclosure for entity reset, local My Templates/' docs/TABLE_OS_TEST_MATRIX.md
       - name: Install dependencies
@@ -31,6 +33,7 @@ jobs:
       - name: Commit product tree and remove temporary migration files
         run: |
           rm .github/tmp/add-phase-checklists.py
+          rm .github/tmp/fix-phase-checklist-e2e.py
           rm .github/workflows/migrate-phase-checklists.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
