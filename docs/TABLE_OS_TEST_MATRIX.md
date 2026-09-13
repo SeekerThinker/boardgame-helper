@@ -28,6 +28,7 @@ The following are release blockers rather than optional polish:
 - Play mode must not expose template selectors, score formula configuration or roster edit fields.
 - Advanced configuration must remain reachable in one action through Edit mode.
 - Existing basic timer/scoring flows must remain unchanged by Table OS work.
+- Removing a phase before the current live phase must preserve that active phase by identity; removing the active phase selects the nearest surviving phase without changing the cycle.
 
 The production Android signing key, Apple distribution identity/profile and store-console metadata remain external release prerequisites and are not fabricated by CI.
 
@@ -52,3 +53,9 @@ The production Android signing key, Apple distribution identity/profile and stor
 
 - Unit: mixed newline/comma/semicolon/tab paste parsing, blank-token trimming, assistant-only identity, and safe truncation at 32 participants.
 - Chromium: Edit setup can paste several participants in one action, persists them locally as assistant-only participants, and leaves the main game roster unchanged.
+
+
+### Phase removal continuity
+
+- Unit: deleting a phase before the active phase preserves the same active phase identity after indexes shift; deleting the active phase selects the next neighbor or previous phase when removing the last item.
+- Chromium: deleting an earlier phase in Edit setup does not silently advance the live table to a different phase.

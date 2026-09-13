@@ -128,6 +128,17 @@ async function runPrimaryFlow() {
   assert.notEqual(activeAfter, activeBefore);
   assert.ok(await page.getByRole('button', { name: '去主计时器' }).isVisible());
 
+  // Editing the phase list must not silently move the live pointer when an earlier phase is removed.
+  await editMode(page);
+  await page.getByRole('button', { name: '阶段', exact: true }).click();
+  await page.locator('[data-os-remove-phase]').first().click();
+  const phaseAfterRemoval = await page.evaluate(() => {
+    const stored = JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1'));
+    return stored.phases.items[stored.phases.activeIndex]?.name || '';
+  });
+  assert.equal(phaseAfterRemoval, activeAfter, 'removing an earlier phase preserves the active phase identity');
+  await page.getByRole('button', { name: '牌局模式' }).click();
+
   // Set a private role in Edit mode, then prove the player reveal is two-stage and moderator notes never leak.
   await editMode(page);
   await page.getByRole('button', { name: '团队与身份', exact: true }).click();
