@@ -1,1 +1,2 @@
-entity migration placeholder
+from pathlib import Path
+print(Path('package.json').exists())
