@@ -6,7 +6,7 @@ Table OS is treated as a compatibility layer on top of the existing timer/scorin
 | --- | --- |
 | Node unit tests | roster sync, participant bounds, bulk roster parsing/cap safety, moderator batch assignment/privacy cleanup, built-in templates, privacy-safe My Templates snapshots/apply, template-safe campaign persistence, tracker scopes/clamps, session-vs-campaign tracker persistence, phase cycles, team/role reference cleanup, safe formula parsing, score calculations, campaign persistence, serialization/normalization |
 | Existing Chromium E2E | bilingual setup, accessibility, timer/scoring flow, history/rematch, tools, settings, offline reload, narrow mobile widths and tablet layout |
-| Table OS Chromium E2E | default Play mode, purpose-first quick start, Edit mode, roster sync, bulk roster paste without main-roster mutation, ordered moderator assignment replacement, universal trackers, phase engine, toolbox-team bridge, two-stage private role reveal, moderator-note isolation, formula score sheet, campaign tracker lifetime, campaign reload persistence, campaign survival across built-in/My Template changes, local My Templates save/rename/apply/delete with transient/private-data exclusion, dynamic bilingual UI |
+| Table OS Chromium E2E | default Play mode, purpose-first quick start, Edit mode, roster sync, bulk roster paste without main-roster mutation, ordered moderator assignment replacement, universal trackers, phase engine, toolbox-team bridge, two-stage private role reveal, moderator-note isolation, formula score sheet, campaign tracker lifetime, campaign reload persistence, campaign survival across built-in/My Template changes, destructive template disclosure for entity reset, local My Templates save/rename/apply/delete with transient/private-data exclusion, dynamic bilingual UI |
 | Table OS responsive smoke | no horizontal overflow at 320px phone, 390px phone and tablet widths; Play/Edit mode controls remain usable |
 | Subpath PWA E2E | `/boardgame-helper/` relative assets, manifest, scoped Service Worker, offline reload and privacy navigation |
 | Store assets | five focused screenshots per device/locale: flow, scoring, Table OS live play, tools and results; generated dimensions and duplicate detection remain mandatory |
@@ -23,6 +23,7 @@ The following are release blockers rather than optional polish:
 - Moderator notes must not be rendered into the player reveal DOM.
 - `campaign` trackers must survive New scenario / rematch; `session` trackers must reset to their initial values.
 - Applying a setup template must not erase or silently disable persistent campaign metadata, notes or checkpoints.
+- Any template application that resets Table Entities must explicitly disclose that destructive effect before confirmation.
 - My Templates must remain local-only structural snapshots: no participants, team membership, roles/factions/moderator notes, live tracker/score values or campaign content may be copied into them.
 - Normalization/import must drop Tracker/Status live values for entities that do not exist in the current participant/team roster; invisible stale IDs must never survive persistence or re-export.
 - Play mode must not expose template selectors, score formula configuration or roster edit fields.
