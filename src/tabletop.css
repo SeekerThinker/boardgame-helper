@@ -212,3 +212,23 @@
 @media (max-width: 760px) {
   .tableos-status-head.tableos-module-head { grid-template-columns: minmax(0, 1fr) 110px auto; }
 }
+
+.tableos-phase-timer-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  margin-top: .5rem;
+}
+.tableos-phase-timer-field > span {
+  display: grid;
+  gap: .15rem;
+}
+.tableos-phase-timer-field small {
+  color: #64748b;
+  font-weight: 400;
+}
+.tableos-phase-timer-field input {
+  width: 7rem;
+  flex: 0 0 auto;
+}

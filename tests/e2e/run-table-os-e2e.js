@@ -68,11 +68,16 @@ async function runPrimaryFlow() {
   const errors = [];
   const promptResponses = [];
   const confirmMessages = [];
+  let dismissNextConfirm = false;
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   page.on('pageerror', error => errors.push(error.message));
   page.on('dialog', async dialog => {
     if (dialog.type() === 'prompt') await dialog.accept(promptResponses.shift() || dialog.defaultValue() || '');
-    else { confirmMessages.push(dialog.message()); await dialog.accept(); }
+    else {
+      confirmMessages.push(dialog.message());
+      if (dismissNextConfirm) { dismissNextConfirm = false; await dialog.dismiss(); }
+      else await dialog.accept();
+    }
   });
 
   await page.goto(url, { waitUntil: 'networkidle' });
@@ -164,6 +169,48 @@ async function runPrimaryFlow() {
   await page.locator('[data-os-phase-active]').last().click();
   await page.getByRole('button', { name: /下一步/ }).click();
   assert.equal(await page.locator('[data-os-phase-check]').first().getAttribute('aria-pressed'), 'false', 'wrapping to a new cycle resets checklist completion');
+
+  // Optional phase timers bridge explicitly into the main shared timer and never auto-start or auto-overwrite it.
+  await editMode(page);
+  await page.getByRole('button', { name: '阶段', exact: true }).click();
+  const phaseTimerInput = page.locator('.tableos-phase.active [data-os-phase-timer-seconds]');
+  await phaseTimerInput.fill('75');
+  await phaseTimerInput.blur();
+  await page.getByRole('button', { name: '牌局模式' }).click();
+  await page.getByRole('button', { name: '阶段', exact: true }).click();
+  assert.ok(await page.getByRole('button', { name: /载入主计时器 · 01:15/ }).isVisible(), 'configured active phase exposes an explicit timer load action');
+
+  await page.getByRole('button', { name: '关闭' }).click();
+  await page.getByRole('button', { name: '开始桌游局' }).click();
+  await page.locator('[data-action="timer-toggle"]').click();
+  const runningBeforeBridge = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-state-v2')));
+  assert.equal(runningBeforeBridge.timer.running, true, 'main timer is running before bridge safety check');
+  const preservedSharedPool = runningBeforeBridge.timer.sharedRemainingSeconds;
+  const preservedPlayerPools = runningBeforeBridge.players.map(player => player.poolSeconds);
+
+  await openTableOs(page);
+  await page.getByRole('button', { name: '阶段', exact: true }).click();
+  dismissNextConfirm = true;
+  await page.getByRole('button', { name: /载入主计时器 · 01:15/ }).click();
+  assert.ok(await tableDialog.isVisible(), 'canceling replacement keeps Table OS open');
+  const afterCanceledBridge = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-state-v2')));
+  assert.equal(afterCanceledBridge.timer.running, true, 'canceling replacement leaves the running timer untouched');
+  assert.equal(afterCanceledBridge.timer.mode, runningBeforeBridge.timer.mode, 'canceling replacement preserves the timer mode');
+  assert.match(confirmMessages.at(-1), /主计时器正在运行/, 'running timer replacement is explicitly disclosed');
+
+  await page.getByRole('button', { name: /载入主计时器 · 01:15/ }).click();
+  assert.equal(await tableDialog.isVisible(), false, 'accepted phase timer load closes Table OS');
+  const bridgedGame = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-state-v2')));
+  assert.equal(bridgedGame.timer.running, false, 'phase timer is prepared but never auto-started');
+  assert.equal(bridgedGame.timer.mode, 'round', 'phase timer uses the shared round/discussion timer mode');
+  assert.equal(bridgedGame.timer.baseSeconds, 75);
+  assert.equal(bridgedGame.timer.remainingSeconds, 75);
+  assert.equal(bridgedGame.timer.deadlineMs, null);
+  assert.equal(bridgedGame.timer.sharedRemainingSeconds, preservedSharedPool, 'loading a phase timer does not erase a stored shared-pool value');
+  assert.deepEqual(bridgedGame.players.map(player => player.poolSeconds), preservedPlayerPools, 'loading a phase timer does not erase personal chess-clock pools');
+  assert.equal(await page.locator('#timerDisplay').textContent(), '01:15', 'main timer visibly receives the configured phase duration');
+
+  await openTableOs(page);
 
   // Set a private role in Edit mode, then prove the player reveal is two-stage and moderator notes never leak.
   await editMode(page);
@@ -418,7 +465,7 @@ async function run() {
   console.log(JSON.stringify({
     event: 'table-os-e2e-summary', status: 'PASS',
     checks: [
-      'play/edit separation', 'purpose-first quick start', 'roster sync', 'universal trackers', 'phase engine', 'phase checklist lifecycle',
+      'play/edit separation', 'purpose-first quick start', 'roster sync', 'universal trackers', 'phase engine', 'phase checklist lifecycle', 'phase timer bridge',
       'toolbox-team bridge', 'two-stage private role reveal', 'moderator-note isolation', 'formula score sheet', 'unary formula operators', 'modal focus trap', 'nested reveal focus return', 'launcher focus return',
       'pagehide draft flush', 'escape-close draft flush', 'campaign tracker persistence', 'campaign reload persistence', 'template entity destructive disclosure', '320px mobile', 'tablet', 'dynamic bilingual UI'
     ]

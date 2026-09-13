@@ -1,4 +1,4 @@
-export const TABLE_OS_SCHEMA_VERSION = 5;
+export const TABLE_OS_SCHEMA_VERSION = 6;
 export const TABLE_OS_STORAGE_KEY = 'board-game-assistant-table-os-v1';
 export const MAX_TABLE_OS_PARTICIPANTS = 32;
 export const MAX_ENTITIES = 16;
@@ -10,7 +10,7 @@ export const MAX_TEAMS = 8;
 export const MAX_SCORE_FIELDS = 16;
 export const MAX_CAMPAIGN_FLAGS = 40;
 export const MAX_USER_TEMPLATES = 12;
-export const USER_TEMPLATE_VERSION = 4;
+export const USER_TEMPLATE_VERSION = 5;
 
 const DEFAULT_COLORS = [
   '#f97316', '#14b8a6', '#3b82f6', '#eab308', '#ef4444', '#8b5cf6',
@@ -426,6 +426,7 @@ function normalizePhases(value) {
         id,
         name: text(phase?.name || `Phase ${index + 1}`, 32),
         note: text(phase?.note, 120),
+        timerSeconds: integer(phase?.timerSeconds, 0, 0, 86400),
         checklist: normalizePhaseChecklist(phase?.checklist)
       };
     });
@@ -801,10 +802,20 @@ export function toggleStatus(state, statusId, entityId = 'global') {
 
 export function addPhase(state, name = '') {
   if (state.phases.items.length >= MAX_PHASES) return null;
-  const phase = { id: uid('phase_'), name: text(name || `Phase ${state.phases.items.length + 1}`, 32), note: '', checklist: [] };
+  const phase = { id: uid('phase_'), name: text(name || `Phase ${state.phases.items.length + 1}`, 32), note: '', timerSeconds: 0, checklist: [] };
   state.phases.items.push(phase);
   touch(state);
   return phase;
+}
+
+export function setPhaseTimerSeconds(state, phaseId, seconds = 0) {
+  const phase = state.phases.items.find(item => item.id === phaseId);
+  if (!phase) return false;
+  const next = integer(seconds, 0, 0, 86400);
+  if (phase.timerSeconds === next) return false;
+  phase.timerSeconds = next;
+  touch(state);
+  return true;
 }
 
 export function setPhaseChecklistFromText(state, phaseId, input = '') {
@@ -1187,6 +1198,7 @@ export function normalizeUserTemplate(input) {
     phases: phaseSource.slice(0, MAX_PHASES).map((phase, index) => ({
       name: text(phase?.name || `Phase ${index + 1}`, 32),
       note: text(phase?.note, 120),
+      timerSeconds: integer(phase?.timerSeconds, 0, 0, 86400),
       checklist: (Array.isArray(phase?.checklist) ? phase.checklist : []).slice(0, MAX_PHASE_CHECKLIST_ITEMS).map((item, itemIndex) => ({
         label: text(typeof item === 'string' ? item : item?.label || `Item ${itemIndex + 1}`, 80)
       }))
@@ -1249,6 +1261,7 @@ export function applyUserTemplate(state, input, { preserveParticipants = true } 
     id: uid('phase_'),
     name: phase.name,
     note: phase.note,
+    timerSeconds: phase.timerSeconds,
     checklist: phase.checklist.map(item => ({ id: uid('phase_item_'), label: item.label, done: false }))
   }));
   state.statuses = template.statuses.map((status, index) => statusFromTemplate({ ...status, values: {} }, index));
@@ -1282,6 +1295,7 @@ export function applyAssistantTemplate(state, templateId, { preserveParticipants
     id: uid('phase_'),
     name: translated?.phases?.[index] || name,
     note: '',
+    timerSeconds: 0,
     checklist: []
   }));
   state.trackers = template.trackers.slice(0, MAX_TRACKERS).map((tracker, index) => trackerFromTemplate({
