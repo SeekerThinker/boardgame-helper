@@ -1,1 +1,12 @@
 from pathlib import Path
+p=Path('src/tabletop.js')
+s=p.read_text()
+def one(a,b):
+    global s
+    if s.count(a)!=1: raise SystemExit('scope control match')
+    s=s.replace(a,b,1)
+one('<option value="team" ${status.scope === \'team\' ? \'selected\' : \'\'}>${esc(tr(\'team\'))}</option></select>', '<option value="team" ${status.scope === \'team\' ? \'selected\' : \'\'}>${esc(tr(\'team\'))}</option><option value="entity" ${status.scope === \'entity\' ? \'selected\' : \'\'}>${esc(tr(\'entity\'))}</option></select>')
+one('<option value="team" ${tracker.scope === \'team\' ? \'selected\' : \'\'}>${esc(tr(\'team\'))}</option></select>', '<option value="team" ${tracker.scope === \'team\' ? \'selected\' : \'\'}>${esc(tr(\'team\'))}</option><option value="entity" ${tracker.scope === \'entity\' ? \'selected\' : \'\'}>${esc(tr(\'entity\'))}</option></select>')
+one("${status.scope === 'team' ? esc(tr('noTeams')) : esc(tr('emptyParticipants'))}", "${status.scope === 'team' ? esc(tr('noTeams')) : status.scope === 'entity' ? esc(tr('noEntities')) : esc(tr('emptyParticipants'))}")
+one("${tracker.scope === 'team' ? esc(tr('noTeams')) : esc(tr('emptyParticipants'))}", "${tracker.scope === 'team' ? esc(tr('noTeams')) : tracker.scope === 'entity' ? esc(tr('noEntities')) : esc(tr('emptyParticipants'))}")
+p.write_text(s)
