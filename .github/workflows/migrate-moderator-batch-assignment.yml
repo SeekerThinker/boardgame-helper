@@ -1,0 +1,50 @@
+name: Migrate moderator batch assignment
+
+on:
+  push:
+    branches:
+      - feat/table-os-moderator-batch-assignment
+    paths:
+      - .github/scripts/migrate-moderator-batch-core.py
+      - .github/scripts/migrate-moderator-batch-ui.py
+      - .github/scripts/migrate-moderator-batch-tests.py
+      - .github/workflows/migrate-moderator-batch-assignment.yml
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply focused migration
+        run: |
+          python .github/scripts/migrate-moderator-batch-core.py
+          python .github/scripts/migrate-moderator-batch-ui.py
+          python .github/scripts/migrate-moderator-batch-tests.py
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Validate full repository
+        run: npm run check
+      - name: Commit validated product tree and remove migration scaffolding
+        run: |
+          rm -f .github/scripts/migrate-moderator-batch-core.py
+          rm -f .github/scripts/migrate-moderator-batch-ui.py
+          rm -f .github/scripts/migrate-moderator-batch-tests.py
+          rm -f .github/workflows/migrate-moderator-batch-assignment.yml
+          rm -f tmp-moderator-batch-note.txt tmp-character-test.txt
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "feat: add bulk moderator assignments"
+          git push origin HEAD:feat/table-os-moderator-batch-assignment
