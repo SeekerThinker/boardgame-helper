@@ -147,7 +147,23 @@ async function runPrimaryFlow() {
     return stored.phases.items[stored.phases.activeIndex]?.name || '';
   });
   assert.equal(phaseAfterRemoval, activeAfter, 'removing an earlier phase preserves the active phase identity');
+
+  // Active phases can carry a lightweight checklist without turning Table OS into a rules engine.
+  await page.locator('.tableos-phase.active .tableos-phase-checklist-editor > summary').click();
+  const activeChecklistEditor = page.locator('.tableos-phase.active [data-os-phase-checklist]');
+  await activeChecklistEditor.fill('处理阶段能力\n补充公共资源');
+  await activeChecklistEditor.blur();
   await page.getByRole('button', { name: '牌局模式' }).click();
+  await page.getByRole('button', { name: '阶段', exact: true }).click();
+  const phaseChecklistItems = page.locator('[data-os-phase-check]');
+  assert.equal(await phaseChecklistItems.count(), 2, 'only the active phase exposes its configured checklist in play mode');
+  await phaseChecklistItems.first().click();
+  assert.equal(await phaseChecklistItems.first().getAttribute('aria-pressed'), 'true', 'phase checklist is directly toggleable during play');
+  const checkedSnapshot = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1')));
+  assert.equal(checkedSnapshot.phases.items[checkedSnapshot.phases.activeIndex].checklist[0].done, true, 'phase checklist completion persists within the current cycle');
+  await page.locator('[data-os-phase-active]').last().click();
+  await page.getByRole('button', { name: /下一步/ }).click();
+  assert.equal(await page.locator('[data-os-phase-check]').first().getAttribute('aria-pressed'), 'false', 'wrapping to a new cycle resets checklist completion');
 
   // Set a private role in Edit mode, then prove the player reveal is two-stage and moderator notes never leak.
   await editMode(page);
@@ -402,7 +418,7 @@ async function run() {
   console.log(JSON.stringify({
     event: 'table-os-e2e-summary', status: 'PASS',
     checks: [
-      'play/edit separation', 'purpose-first quick start', 'roster sync', 'universal trackers', 'phase engine',
+      'play/edit separation', 'purpose-first quick start', 'roster sync', 'universal trackers', 'phase engine', 'phase checklist lifecycle',
       'toolbox-team bridge', 'two-stage private role reveal', 'moderator-note isolation', 'formula score sheet', 'unary formula operators', 'modal focus trap', 'nested reveal focus return', 'launcher focus return',
       'pagehide draft flush', 'escape-close draft flush', 'campaign tracker persistence', 'campaign reload persistence', 'template entity destructive disclosure', '320px mobile', 'tablet', 'dynamic bilingual UI'
     ]

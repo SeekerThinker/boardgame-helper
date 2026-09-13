@@ -1,15 +1,16 @@
-export const TABLE_OS_SCHEMA_VERSION = 4;
+export const TABLE_OS_SCHEMA_VERSION = 5;
 export const TABLE_OS_STORAGE_KEY = 'board-game-assistant-table-os-v1';
 export const MAX_TABLE_OS_PARTICIPANTS = 32;
 export const MAX_ENTITIES = 16;
 export const MAX_TRACKERS = 24;
 export const MAX_STATUSES = 24;
 export const MAX_PHASES = 20;
+export const MAX_PHASE_CHECKLIST_ITEMS = 12;
 export const MAX_TEAMS = 8;
 export const MAX_SCORE_FIELDS = 16;
 export const MAX_CAMPAIGN_FLAGS = 40;
 export const MAX_USER_TEMPLATES = 12;
-export const USER_TEMPLATE_VERSION = 3;
+export const USER_TEMPLATE_VERSION = 4;
 
 const DEFAULT_COLORS = [
   '#f97316', '#14b8a6', '#3b82f6', '#eab308', '#ef4444', '#8b5cf6',
@@ -396,6 +397,22 @@ function normalizeStatuses(value) {
   });
 }
 
+function normalizePhaseChecklist(value) {
+  if (!Array.isArray(value)) return [];
+  const used = new Set();
+  return value.slice(0, MAX_PHASE_CHECKLIST_ITEMS).map((item, index) => {
+    const source = typeof item === 'string' ? { label: item } : (item && typeof item === 'object' ? item : {});
+    let id = identifier(source.id, 'phase_item_');
+    while (used.has(id)) id = uid('phase_item_');
+    used.add(id);
+    return {
+      id,
+      label: text(source.label || `Item ${index + 1}`, 80),
+      done: Boolean(source.done)
+    };
+  });
+}
+
 function normalizePhases(value) {
   const source = value && typeof value === 'object' ? value : {};
   const used = new Set();
@@ -408,7 +425,8 @@ function normalizePhases(value) {
       return {
         id,
         name: text(phase?.name || `Phase ${index + 1}`, 32),
-        note: text(phase?.note, 120)
+        note: text(phase?.note, 120),
+        checklist: normalizePhaseChecklist(phase?.checklist)
       };
     });
   return {
@@ -783,10 +801,49 @@ export function toggleStatus(state, statusId, entityId = 'global') {
 
 export function addPhase(state, name = '') {
   if (state.phases.items.length >= MAX_PHASES) return null;
-  const phase = { id: uid('phase_'), name: text(name || `Phase ${state.phases.items.length + 1}`, 32), note: '' };
+  const phase = { id: uid('phase_'), name: text(name || `Phase ${state.phases.items.length + 1}`, 32), note: '', checklist: [] };
   state.phases.items.push(phase);
   touch(state);
   return phase;
+}
+
+export function setPhaseChecklistFromText(state, phaseId, input = '') {
+  const phase = state.phases.items.find(item => item.id === phaseId);
+  if (!phase) return { requested: 0, saved: 0, limitReached: false, changed: false };
+  const labels = String(input ?? '')
+    .split(/\r?\n/)
+    .map(item => text(item, 80))
+    .filter(Boolean);
+  const priorByLabel = new Map();
+  (phase.checklist || []).forEach(item => {
+    if (!priorByLabel.has(item.label)) priorByLabel.set(item.label, []);
+    priorByLabel.get(item.label).push(item);
+  });
+  const next = labels.slice(0, MAX_PHASE_CHECKLIST_ITEMS).map(label => {
+    const prior = priorByLabel.get(label)?.shift();
+    return prior ? { id: prior.id, label, done: Boolean(prior.done) } : { id: uid('phase_item_'), label, done: false };
+  });
+  const before = JSON.stringify((phase.checklist || []).map(item => [item.id, item.label, Boolean(item.done)]));
+  const after = JSON.stringify(next.map(item => [item.id, item.label, Boolean(item.done)]));
+  phase.checklist = next;
+  const changed = before !== after;
+  if (changed) touch(state);
+  return { requested: labels.length, saved: next.length, limitReached: labels.length > next.length, changed };
+}
+
+export function togglePhaseChecklistItem(state, phaseId, itemId) {
+  const phase = state.phases.items.find(item => item.id === phaseId);
+  const item = phase?.checklist?.find(candidate => candidate.id === itemId);
+  if (!item) return false;
+  item.done = !item.done;
+  touch(state);
+  return true;
+}
+
+function resetPhaseChecklistProgress(state) {
+  state.phases.items.forEach(phase => {
+    (phase.checklist || []).forEach(item => { item.done = false; });
+  });
 }
 
 export function removePhase(state, phaseId) {
@@ -820,13 +877,17 @@ export function advancePhase(state, direction = 1) {
   if (!count) return null;
   const forward = Number(direction) >= 0;
   let next = state.phases.activeIndex + (forward ? 1 : -1);
+  let cycleChanged = false;
   if (next >= count) {
     next = 0;
     state.phases.cycle = Math.min(9999, state.phases.cycle + 1);
+    cycleChanged = true;
   } else if (next < 0) {
     next = count - 1;
     state.phases.cycle = Math.max(1, state.phases.cycle - 1);
+    cycleChanged = true;
   }
+  if (cycleChanged) resetPhaseChecklistProgress(state);
   state.phases.activeIndex = next;
   touch(state);
   return state.phases.items[next];
@@ -1125,7 +1186,10 @@ export function normalizeUserTemplate(input) {
     }),
     phases: phaseSource.slice(0, MAX_PHASES).map((phase, index) => ({
       name: text(phase?.name || `Phase ${index + 1}`, 32),
-      note: text(phase?.note, 120)
+      note: text(phase?.note, 120),
+      checklist: (Array.isArray(phase?.checklist) ? phase.checklist : []).slice(0, MAX_PHASE_CHECKLIST_ITEMS).map((item, itemIndex) => ({
+        label: text(typeof item === 'string' ? item : item?.label || `Item ${itemIndex + 1}`, 80)
+      }))
     })),
     teams: teamSource.slice(0, MAX_TEAMS).map((team, index) => ({
       name: text(team?.name || `Team ${index + 1}`, 28),
@@ -1181,7 +1245,12 @@ export function applyUserTemplate(state, input, { preserveParticipants = true } 
   state.participants = participants;
   state.entities = template.entities.map((entity, index) => ({ id: uid('entity_'), name: text(entity.name || `Entity ${index + 1}`, 32) }));
   state.appliedTemplateId = `user:${template.id}`;
-  state.phases.items = template.phases.map(phase => ({ id: uid('phase_'), name: phase.name, note: phase.note }));
+  state.phases.items = template.phases.map(phase => ({
+    id: uid('phase_'),
+    name: phase.name,
+    note: phase.note,
+    checklist: phase.checklist.map(item => ({ id: uid('phase_item_'), label: item.label, done: false }))
+  }));
   state.statuses = template.statuses.map((status, index) => statusFromTemplate({ ...status, values: {} }, index));
   state.trackers = template.trackers.map((tracker, index) => trackerFromTemplate({
     ...tracker,
@@ -1212,7 +1281,8 @@ export function applyAssistantTemplate(state, templateId, { preserveParticipants
   state.phases.items = template.phases.slice(0, MAX_PHASES).map((name, index) => ({
     id: uid('phase_'),
     name: translated?.phases?.[index] || name,
-    note: ''
+    note: '',
+    checklist: []
   }));
   state.trackers = template.trackers.slice(0, MAX_TRACKERS).map((tracker, index) => trackerFromTemplate({
     ...tracker,
@@ -1246,6 +1316,7 @@ export function resetTableOsSession(state) {
   state.statuses.forEach(status => { status.values = {}; });
   state.phases.activeIndex = 0;
   state.phases.cycle = 1;
+  resetPhaseChecklistProgress(state);
   state.roles = [];
   state.scoreSheet.values = {};
   state.campaign.sessionNumber = Math.max(1, state.campaign.sessionNumber + 1);
