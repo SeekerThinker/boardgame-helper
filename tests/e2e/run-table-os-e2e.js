@@ -95,6 +95,19 @@ async function runPrimaryFlow() {
   assert.equal(await page.locator('[data-os-participant-name]').count(), 4, 'main game roster is synchronized on first open');
   assert.ok(await page.locator('[data-os-template]').isVisible());
 
+  // Large-table setup: paste a mixed-separator roster once instead of adding assistant-only players one by one.
+  await page.getByText('批量添加名单', { exact: true }).click();
+  const bulkRoster = page.locator('[data-os-bulk-participants]');
+  await bulkRoster.fill('阿青\n小林, Mia；Noah\tEva');
+  await page.getByRole('button', { name: '添加名单' }).click();
+  assert.equal(await page.locator('[data-os-participant-name]').count(), 9, 'bulk roster appends all parsed participants');
+  const bulkSnapshot = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1')));
+  assert.deepEqual(bulkSnapshot.participants.slice(-5).map(item => item.name), ['阿青', '小林', 'Mia', 'Noah', 'Eva']);
+  assert.equal(bulkSnapshot.participants.slice(-5).every(item => item.sourcePlayerId === null), true, 'bulk roster creates assistant-only participants');
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-state-v2')).players.length), 4, 'bulk roster never mutates the main game roster');
+  for (let index = 0; index < 5; index += 1) await page.locator('[data-os-remove-participant]').last().click();
+  assert.equal(await page.locator('[data-os-participant-name]').count(), 4, 'test cleanup returns to the synchronized four-player roster');
+
   // Apply a cooperative template; application intentionally returns to Play mode.
   await page.locator('[data-os-template]').selectOption('coop-crisis');
   await page.getByRole('button', { name: '应用模板' }).click();
