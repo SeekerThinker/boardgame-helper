@@ -1,5 +1,6 @@
 from pathlib import Path
 
+# One-shot branch polish after the focused bridge migration.
 def replace_once(path, old, new):
     p = Path(path)
     text = p.read_text()
