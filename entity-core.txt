@@ -1,1 +1,69 @@
 from pathlib import Path
+
+p = Path('src/tabletop-core.js')
+s = p.read_text()
+
+def once(old, new):
+    global s
+    c = s.count(old)
+    if c != 1:
+        raise SystemExit(f'core replacement count {c}: {old[:70]!r}')
+    s = s.replace(old, new, 1)
+
+once('export const TABLE_OS_SCHEMA_VERSION = 3;\n', 'export const TABLE_OS_SCHEMA_VERSION = 4;\n')
+once('export const MAX_TABLE_OS_PARTICIPANTS = 32;\n', 'export const MAX_TABLE_OS_PARTICIPANTS = 32;\nexport const MAX_ENTITIES = 16;\n')
+once('export const USER_TEMPLATE_VERSION = 2;\n', 'export const USER_TEMPLATE_VERSION = 3;\n')
+once("const scope = ['global', 'participant', 'team'].includes(tracker.scope) ? tracker.scope : 'global';", "const scope = ['global', 'participant', 'team', 'entity'].includes(tracker.scope) ? tracker.scope : 'global';")
+once("const scope = ['global', 'participant', 'team'].includes(status.scope) ? status.scope : 'global';", "const scope = ['global', 'participant', 'team', 'entity'].includes(status.scope) ? status.scope : 'global';")
+once('function normalizeTrackers(value) {', '''function normalizeEntities(value) {
+  if (!Array.isArray(value)) return [];
+  const used = new Set();
+  return value.slice(0, MAX_ENTITIES).map((entity, index) => {
+    let id = identifier(entity?.id, 'entity_');
+    while (used.has(id)) id = uid('entity_');
+    used.add(id);
+    return { id, name: text(entity?.name || `Entity ${index + 1}`, 32) };
+  });
+}
+
+function normalizeTrackers(value) {''')
+once('    participants: [],\n    trackers: [],', '    participants: [],\n    entities: [],\n    trackers: [],')
+once('function pruneScopedEntityValues(items, participantIds, teamIds) {\n  const validByScope = {\n    global: new Set([\'global\']),\n    participant: participantIds,\n    team: teamIds\n  };', "function pruneScopedEntityValues(items, participantIds, teamIds, entityIds) {\n  const validByScope = {\n    global: new Set(['global']),\n    participant: participantIds,\n    team: teamIds,\n    entity: entityIds\n  };")
+once('  const teams = normalizeTeams(input.teams, participantIds);\n  const teamIds = new Set(teams.map(team => team.id));\n  const trackers = pruneScopedEntityValues(normalizeTrackers(input.trackers), participantIds, teamIds);\n  const statuses = pruneScopedEntityValues(normalizeStatuses(input.statuses), participantIds, teamIds);', '  const teams = normalizeTeams(input.teams, participantIds);\n  const teamIds = new Set(teams.map(team => team.id));\n  const entities = normalizeEntities(input.entities);\n  const entityIds = new Set(entities.map(entity => entity.id));\n  const trackers = pruneScopedEntityValues(normalizeTrackers(input.trackers), participantIds, teamIds, entityIds);\n  const statuses = pruneScopedEntityValues(normalizeStatuses(input.statuses), participantIds, teamIds, entityIds);')
+once('    participants,\n    trackers,', '    participants,\n    entities,\n    trackers,')
+once("export function addTracker(state, { name = 'Tracker'", '''export function addEntity(state, name = '') {
+  if (state.entities.length >= MAX_ENTITIES) return null;
+  const entity = { id: uid('entity_'), name: text(name || `Entity ${state.entities.length + 1}`, 32) };
+  state.entities.push(entity);
+  touch(state);
+  return entity;
+}
+
+export function renameEntity(state, entityId, name) {
+  const entity = state.entities.find(item => item.id === entityId);
+  if (!entity) return false;
+  entity.name = text(name || entity.name, 32);
+  touch(state);
+  return true;
+}
+
+export function removeEntity(state, entityId) {
+  const index = state.entities.findIndex(item => item.id === entityId);
+  if (index < 0) return false;
+  state.entities.splice(index, 1);
+  state.trackers.forEach(tracker => { if (tracker.scope === 'entity') delete tracker.values?.[entityId]; });
+  state.statuses.forEach(status => { if (status.scope === 'entity') delete status.values?.[entityId]; });
+  touch(state);
+  return true;
+}
+
+export function addTracker(state, { name = 'Tracker''')
+once("  if (tracker.scope === 'team') return state.teams.map(team => team.id);\n  return ['global'];", "  if (tracker.scope === 'team') return state.teams.map(team => team.id);\n  if (tracker.scope === 'entity') return state.entities.map(entity => entity.id);\n  return ['global'];")
+once("  if (status.scope === 'team') return state.teams.map(team => team.id);\n  return ['global'];", "  if (status.scope === 'team') return state.teams.map(team => team.id);\n  if (status.scope === 'entity') return state.entities.map(entity => entity.id);\n  return ['global'];")
+once('  const teamSource = Array.isArray(source.teams) ? source.teams : [];\n  const scoreSource', '  const teamSource = Array.isArray(source.teams) ? source.teams : [];\n  const entitySource = Array.isArray(source.entities) ? source.entities : [];\n  const scoreSource')
+once('    teams: teamSource.slice(0, MAX_TEAMS).map((team, index) => ({\n      name: text(team?.name || `Team ${index + 1}`, 28),\n      color: color(team?.color, index)\n    })),\n    scoreFields:', '    teams: teamSource.slice(0, MAX_TEAMS).map((team, index) => ({\n      name: text(team?.name || `Team ${index + 1}`, 28),\n      color: color(team?.color, index)\n    })),\n    entities: entitySource.slice(0, MAX_ENTITIES).map((entity, index) => ({\n      name: text(entity?.name || `Entity ${index + 1}`, 32)\n    })),\n    scoreFields:')
+once('    teams: state.teams,\n    scoreFields:', '    teams: state.teams,\n    entities: state.entities,\n    scoreFields:')
+once('  state.trackers = [];\n  state.statuses = [];', '  state.trackers = [];\n  state.statuses = [];\n  state.entities = [];')
+once('  state.participants = participants;\n  state.appliedTemplateId = `user:${template.id}`;', '  state.participants = participants;\n  state.entities = template.entities.map((entity, index) => ({ id: uid(\'entity_\'), name: text(entity.name || `Entity ${index + 1}`, 32) }));\n  state.appliedTemplateId = `user:${template.id}`;')
+
+p.write_text(s)
