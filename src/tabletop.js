@@ -7,7 +7,7 @@ import {
   addStatus, removeStatus, statusEntityIds, statusValue, toggleStatus,
   addPhase, removePhase, setActivePhase, advancePhase,
   addTeam, replaceTeams, removeTeam, toggleTeamMember, setRole, clearRole, roleForParticipant,
-  addScoreSheetField, removeScoreSheetField, setScoreSheetValue, scoreCardForParticipant,
+  addScoreSheetField, setScoreSheetFieldKey, removeScoreSheetField, setScoreSheetValue, scoreCardForParticipant,
   addCampaignFlag, toggleCampaignFlag, removeCampaignFlag,
   normalizeUserTemplate, createUserTemplateFromState, applyUserTemplate,
   applyAssistantTemplate, resetTableOsSession, serializeTableOsState, parseTableOsState, touch
@@ -745,7 +745,7 @@ function bindEvents() {
     if (d.osRoleNote) { setRolePart(d.osRoleNote, 'note', element.value); persist(); return; }
     if (d.osRoleSecret) { setRolePart(d.osRoleSecret, 'secret', element.checked); persist(); return; }
     if (d.osScoreName) { mutateScoreField(d.osScoreName, { name: element.value.trim().slice(0, 28) || tr('customField') }); saveAndRender(); return; }
-    if (d.osScoreKey) { mutateScoreField(d.osScoreKey, { key: element.value.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 24) || 'field' }); saveAndRender(); return; }
+    if (d.osScoreKey) { setScoreSheetFieldKey(state, d.osScoreKey, element.value); saveAndRender(); return; }
     if (d.osScoreFormula) { mutateScoreField(d.osScoreFormula, { formula: element.value.trim().slice(0, 120) }); saveAndRender(); return; }
     if (d.osScoreStep) { mutateScoreField(d.osScoreStep, { step: Math.max(1, Math.round(Number(element.value) || 1)) }); saveAndRender(); return; }
     if (d.osScoreEffect) { mutateScoreField(d.osScoreEffect, { effect: Number(element.value) === -1 ? -1 : 1 }); saveAndRender(); return; }
