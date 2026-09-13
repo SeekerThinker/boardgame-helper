@@ -16,7 +16,7 @@ jobs:
         with:
           node-version: 22
       - name: Apply focused migration
-        run: python3 scripts/migrate-table-os-entities.py
+        run: python3 entity-core.txt
       - name: Install dependencies
         run: npm ci
       - name: Install Chromium
@@ -25,9 +25,9 @@ jobs:
         run: npm run check
       - name: Commit validated product tree
         run: |
-          rm scripts/migrate-table-os-entities*.py .github/workflows/migrate-table-os-entities.yml
+          rm entity-core.txt entity-ui.txt entity-migration.txt entity-tests.txt .github/workflows/migrate-table-os-entities.yml
           git add -A
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git commit -m "feat: add lightweight table entities"
+          git commit -m "feat: add lightweight table entities core"
           git push
