@@ -25,7 +25,7 @@ jobs:
         run: npm run check
       - name: Commit validated product tree
         run: |
-          rm scripts/migrate-table-os-entities.py .github/workflows/migrate-table-os-entities.yml
+          rm scripts/migrate-table-os-entities*.py .github/workflows/migrate-table-os-entities.yml
           git add -A
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
