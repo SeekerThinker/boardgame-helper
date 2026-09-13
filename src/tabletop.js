@@ -2,7 +2,7 @@ import { STORAGE_KEY } from './core.js';
 import {
   TABLE_OS_STORAGE_KEY, ASSISTANT_TEMPLATES, MAX_TABLE_OS_PARTICIPANTS, MAX_TRACKERS, MAX_STATUSES, MAX_PHASES,
   MAX_TEAMS, MAX_SCORE_FIELDS, MAX_CAMPAIGN_FLAGS, MAX_USER_TEMPLATES, uid, createDefaultTableOsState, normalizeTableOsState,
-  syncParticipantsFromGame, addParticipant, renameParticipant, removeParticipant,
+  syncParticipantsFromGame, addParticipant, addParticipantsFromText, renameParticipant, removeParticipant,
   addTracker, removeTracker, trackerEntityIds, trackerValue, adjustTracker, setTrackerValue, setTrackerPersistence,
   addStatus, removeStatus, statusEntityIds, statusValue, toggleStatus,
   addPhase, removePhase, setActivePhase, advancePhase,
@@ -24,7 +24,7 @@ const I18N = {
     close: '关闭', sync: '同步当前玩家', template: '适配模板', apply: '应用模板', reset: '新场景 / 下一局', export: '导出', import: '导入',
     playMode: '牌局模式', editMode: '编辑配置', editHint: '模板、结构和高级设置只在编辑模式出现。',
     overview: '总览', statuses: '状态', trackers: '追踪器', phases: '阶段', teams: '团队与身份', score: '计分表', campaign: '战役',
-    participants: '参与者', addParticipant: '添加参与者', sourceGame: '当前对局', localOnly: '扩展参与者', remove: '删除',
+    participants: '参与者', addParticipant: '添加参与者', bulkParticipants: '批量添加名单', bulkParticipantsHelp: '每行一位，也支持逗号、分号或制表符；只追加到 Table OS，不改动主应用玩家。', bulkParticipantsPlaceholder: '阿青\n小林\nMia', bulkAddParticipants: '添加名单', bulkAdded: '已批量添加参与者：', bulkNoNames: '没有可添加的名字。', sourceGame: '当前对局', localOnly: '扩展参与者', remove: '删除',
     activeTemplate: '当前模板', coverage: '当前工作台', coverageText: '状态 · 阶段 · 团队 · 私密身份 · 计分 · 战役',
     emptyParticipants: '还没有参与者。可以同步主应用玩家，或在编辑模式单独添加。', savedLocal: '全部数据只保存在本机。',
     quickStart: '今天需要什么？', quickStartHelp: '先选一个最接近的场景，之后只在需要时调整。',
@@ -52,7 +52,7 @@ const I18N = {
     close: 'Close', sync: 'Sync game players', template: 'Assistant template', apply: 'Apply', reset: 'New scenario / rematch', export: 'Export', import: 'Import',
     playMode: 'Play', editMode: 'Edit setup', editHint: 'Templates, structure and advanced settings only appear in Edit mode.',
     overview: 'Overview', statuses: 'Statuses', trackers: 'Trackers', phases: 'Phases', teams: 'Teams & roles', score: 'Score sheet', campaign: 'Campaign',
-    participants: 'Participants', addParticipant: 'Add participant', sourceGame: 'Game roster', localOnly: 'Assistant-only', remove: 'Remove',
+    participants: 'Participants', addParticipant: 'Add participant', bulkParticipants: 'Paste roster', bulkParticipantsHelp: 'One name per line; commas, semicolons and tabs also work. This only appends Table OS participants and never changes the main game roster.', bulkParticipantsPlaceholder: 'Ada\nLin\nMia', bulkAddParticipants: 'Add roster', bulkAdded: 'Participants added:', bulkNoNames: 'No names to add.', sourceGame: 'Game roster', localOnly: 'Assistant-only', remove: 'Remove',
     activeTemplate: 'Active template', coverage: 'Active workspace', coverageText: 'State · phases · teams · private roles · scoring · campaign',
     emptyParticipants: 'No participants yet. Sync the main game roster or add assistant-only participants in Edit mode.', savedLocal: 'Everything stays on this device.',
     quickStart: 'What do you need tonight?', quickStartHelp: 'Choose the closest starting point; tune it only when necessary.',
@@ -447,6 +447,7 @@ function renderOverview() {
     </div>
     <section class="tableos-card">
       <div class="tableos-card-head"><div><span>${esc(tr('participants'))}</span><h3>${state.participants.length} / ${MAX_TABLE_OS_PARTICIPANTS}</h3></div>${state.ui.mode === 'edit' ? `<button class="tableos-btn" type="button" data-os-action="add-participant">${esc(tr('addParticipant'))}</button>` : ''}</div>
+      ${state.ui.mode === 'edit' ? `<details class="tableos-module"><summary><strong>${esc(tr('bulkParticipants'))}</strong></summary><p class="tableos-help">${esc(tr('bulkParticipantsHelp'))}</p><textarea rows="5" maxlength="1600" data-os-bulk-participants aria-label="${attr(tr('bulkParticipants'))}" placeholder="${attr(tr('bulkParticipantsPlaceholder'))}"></textarea><div class="tableos-inline-actions"><button class="tableos-btn primary" type="button" data-os-action="bulk-add-participants">${esc(tr('bulkAddParticipants'))}</button></div></details>` : ''}
       ${state.participants.length ? `<div class="tableos-participants">${state.participants.map(participant => state.ui.mode === 'edit' ? `
         <div class="tableos-person" style="--person:${participant.color}"><span class="tableos-dot"></span><input value="${attr(participant.name)}" data-os-participant-name="${participant.id}" maxlength="32"><small>${esc(participant.sourcePlayerId ? tr('sourceGame') : tr('localOnly'))}</small><button class="tableos-mini danger" type="button" data-os-remove-participant="${participant.id}" aria-label="${attr(tr('remove'))}">×</button></div>` : `
         <div class="tableos-person tableos-person-readonly" style="--person:${participant.color}"><span class="tableos-dot"></span><strong>${esc(participant.name)}</strong><small>${esc(participant.sourcePlayerId ? tr('sourceGame') : tr('localOnly'))}</small></div>`).join('')}</div>` : `<p class="tableos-empty">${esc(tr('emptyParticipants'))}</p>`}
@@ -686,6 +687,15 @@ function bindEvents() {
     if (d.osAction === 'open-timer') { isOpen = false; render(); document.querySelector('[data-tab="flow"]')?.click(); return; }
     if (d.osAction === 'adopt-teams') { adoptRandomTeams(); return; }
     if (d.osAction === 'add-participant') { if (!addParticipant(state, tr('customParticipant'))) flash(tr('limit')); else { persist(); render(); } return; }
+    if (d.osAction === 'bulk-add-participants') {
+      const input = document.querySelector('[data-os-bulk-participants]');
+      const result = addParticipantsFromText(state, input instanceof HTMLTextAreaElement ? input.value : '');
+      if (!result.requested) { flash(tr('bulkNoNames')); return; }
+      persist();
+      if (!result.added) { flash(tr('limit')); return; }
+      flash(`${tr('bulkAdded')} ${result.added}${result.limitReached ? ` · ${tr('limit')}` : ''}`);
+      return;
+    }
     if (d.osRemoveParticipant) { removeParticipant(state, d.osRemoveParticipant); persist(); render(); return; }
     if (d.osAction === 'add-status') { if (!addStatus(state, { name: tr('customStatus') })) flash(tr('limit')); else { persist(); render(); } return; }
     if (d.osRemoveStatus) { removeStatus(state, d.osRemoveStatus); persist(); render(); return; }

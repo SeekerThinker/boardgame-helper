@@ -588,6 +588,21 @@ export function addParticipant(state, name = '') {
   return participant;
 }
 
+export function addParticipantsFromText(state, input = '') {
+  const names = String(input ?? '')
+    .split(/[\r\n,，;；\t]+/)
+    .map(item => text(item, 32))
+    .filter(Boolean);
+  const available = Math.max(0, MAX_TABLE_OS_PARTICIPANTS - state.participants.length);
+  const accepted = names.slice(0, available);
+  const start = state.participants.length;
+  accepted.forEach((name, index) => {
+    state.participants.push(participantTemplate(name, start + index));
+  });
+  if (accepted.length) touch(state);
+  return { requested: names.length, added: accepted.length, limitReached: names.length > accepted.length };
+}
+
 export function renameParticipant(state, participantId, name) {
   const participant = state.participants.find(item => item.id === participantId);
   if (!participant) return false;

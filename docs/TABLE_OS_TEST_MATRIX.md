@@ -4,9 +4,9 @@ Table OS is treated as a compatibility layer on top of the existing timer/scorin
 
 | Gate | Coverage |
 | --- | --- |
-| Node unit tests | roster sync, participant bounds, built-in templates, privacy-safe My Templates snapshots/apply, template-safe campaign persistence, tracker scopes/clamps, session-vs-campaign tracker persistence, phase cycles, team/role reference cleanup, safe formula parsing, score calculations, campaign persistence, serialization/normalization |
+| Node unit tests | roster sync, participant bounds, bulk roster parsing/cap safety, built-in templates, privacy-safe My Templates snapshots/apply, template-safe campaign persistence, tracker scopes/clamps, session-vs-campaign tracker persistence, phase cycles, team/role reference cleanup, safe formula parsing, score calculations, campaign persistence, serialization/normalization |
 | Existing Chromium E2E | bilingual setup, accessibility, timer/scoring flow, history/rematch, tools, settings, offline reload, narrow mobile widths and tablet layout |
-| Table OS Chromium E2E | default Play mode, purpose-first quick start, Edit mode, roster sync, universal trackers, phase engine, toolbox-team bridge, two-stage private role reveal, moderator-note isolation, formula score sheet, campaign tracker lifetime, campaign reload persistence, campaign survival across built-in/My Template changes, local My Templates save/rename/apply/delete with transient/private-data exclusion, dynamic bilingual UI |
+| Table OS Chromium E2E | default Play mode, purpose-first quick start, Edit mode, roster sync, bulk roster paste without main-roster mutation, universal trackers, phase engine, toolbox-team bridge, two-stage private role reveal, moderator-note isolation, formula score sheet, campaign tracker lifetime, campaign reload persistence, campaign survival across built-in/My Template changes, local My Templates save/rename/apply/delete with transient/private-data exclusion, dynamic bilingual UI |
 | Table OS responsive smoke | no horizontal overflow at 320px phone, 390px phone and tablet widths; Play/Edit mode controls remain usable |
 | Subpath PWA E2E | `/boardgame-helper/` relative assets, manifest, scoped Service Worker, offline reload and privacy navigation |
 | Store assets | five focused screenshots per device/locale: flow, scoring, Table OS live play, tools and results; generated dimensions and duplicate detection remain mandatory |
@@ -47,3 +47,8 @@ The production Android signing key, Apple distribution identity/profile and stor
 - Unit: global / participant / team Tracker and Status maps preserve only entity IDs valid for their current scope.
 - Unit: parse + serialize cannot retain retired participant/team IDs or values from an old scope.
 - Chromium: reload normalization removes hidden retired team/player values from local persistence while keeping valid live values.
+
+### Large-table roster setup
+
+- Unit: mixed newline/comma/semicolon/tab paste parsing, blank-token trimming, assistant-only identity, and safe truncation at 32 participants.
+- Chromium: Edit setup can paste several participants in one action, persists them locally as assistant-only participants, and leaves the main game roster unchanged.
