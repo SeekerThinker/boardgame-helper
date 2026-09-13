@@ -1,0 +1,39 @@
+name: Migrate bulk roster setup
+
+on:
+  push:
+    branches:
+      - feat/bulk-roster-setup
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply focused migration
+        run: node .github/scripts/migrate-bulk-roster.mjs
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Validate full repository
+        run: npm run check
+      - name: Commit validated product tree and remove migration scaffolding
+        shell: bash
+        run: |
+          rm -f .github/scripts/migrate-bulk-roster.mjs .github/workflows/migrate-bulk-roster.yml
+          git add src/tabletop-core.js src/tabletop.js tests/unit/tabletop-bulk-roster.test.js tests/e2e/run-table-os-e2e.js TABLE_OS.md docs/TABLE_OS_TEST_MATRIX.md .github/scripts/migrate-bulk-roster.mjs .github/workflows/migrate-bulk-roster.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat: add bulk participant roster setup'
+          git push origin HEAD:feat/bulk-roster-setup
