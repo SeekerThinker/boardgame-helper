@@ -16,7 +16,9 @@ jobs:
         with:
           node-version: 22
       - name: Apply focused migration
-        run: python3 entity-core.txt
+        run: |
+          python3 entity-core.txt
+          sed -i "s/name = 'Tracker, scope/name = 'Tracker', scope/" src/tabletop-core.js
       - name: Install dependencies
         run: npm ci
       - name: Install Chromium
