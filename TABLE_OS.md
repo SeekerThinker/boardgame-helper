@@ -245,3 +245,11 @@ ui
 3. 如果未来扩展模板分享，只允许显式导出结构配置；默认本机模板继续保持私密、轻量且不进入社区市场。
 
 产品原则：**桌游助手应该让玩家少管理东西，而不能变成桌上又多了一个需要管理的东西。**
+
+## Lightweight status toggles
+
+Table OS has a dedicated **Statuses / 状态** surface for boolean table state that should not be modeled as a numeric tracker. A status can be shared globally, repeated per participant, or repeated per team. Each definition has a default on/off value; **New scenario / rematch** clears live overrides and restores that default.
+
+Examples include Alive, Poisoned, Stunned, Ready, and Objective complete. Card Battle starts with Poisoned/Stunned toggles, while Hidden Roles starts with Alive enabled for each participant.
+
+Statuses are session state. **My Templates** save only the reusable status definition (name, scope, default), never current on/off values. Campaign-persistent information should continue to use campaign trackers, checkpoints, or notes rather than status toggles.

@@ -1,9 +1,10 @@
 import { STORAGE_KEY } from './core.js';
 import {
-  TABLE_OS_STORAGE_KEY, ASSISTANT_TEMPLATES, MAX_TABLE_OS_PARTICIPANTS, MAX_TRACKERS, MAX_PHASES,
+  TABLE_OS_STORAGE_KEY, ASSISTANT_TEMPLATES, MAX_TABLE_OS_PARTICIPANTS, MAX_TRACKERS, MAX_STATUSES, MAX_PHASES,
   MAX_TEAMS, MAX_SCORE_FIELDS, MAX_CAMPAIGN_FLAGS, MAX_USER_TEMPLATES, uid, createDefaultTableOsState, normalizeTableOsState,
   syncParticipantsFromGame, addParticipant, renameParticipant, removeParticipant,
   addTracker, removeTracker, trackerEntityIds, trackerValue, adjustTracker, setTrackerValue, setTrackerPersistence,
+  addStatus, removeStatus, statusEntityIds, statusValue, toggleStatus,
   addPhase, removePhase, setActivePhase, advancePhase,
   addTeam, removeTeam, toggleTeamMember, setRole, clearRole, roleForParticipant,
   addScoreSheetField, removeScoreSheetField, setScoreSheetValue, scoreCardForParticipant,
@@ -14,7 +15,7 @@ import {
 
 const LEGACY_GAME_STATE_KEY = 'board-game-assistant-state-v1';
 const USER_TEMPLATES_STORAGE_KEY = 'board-game-assistant-table-os-user-templates-v1';
-const SECTION_IDS = ['overview', 'trackers', 'phases', 'teams', 'score', 'campaign'];
+const SECTION_IDS = ['overview', 'statuses', 'trackers', 'phases', 'teams', 'score', 'campaign'];
 const QUICK_TEMPLATES = ['universal', 'coop-crisis', 'hidden-role', 'card-battle', 'campaign', 'party-teams'];
 
 const I18N = {
@@ -22,13 +23,14 @@ const I18N = {
     launcher: '桌面 OS', title: '高级桌游助手', subtitle: '牌局时只保留真正要操作的内容；需要配置时再进入编辑模式。',
     close: '关闭', sync: '同步当前玩家', template: '适配模板', apply: '应用模板', reset: '新场景 / 下一局', export: '导出', import: '导入',
     playMode: '牌局模式', editMode: '编辑配置', editHint: '模板、结构和高级设置只在编辑模式出现。',
-    overview: '总览', trackers: '追踪器', phases: '阶段', teams: '团队与身份', score: '计分表', campaign: '战役',
+    overview: '总览', statuses: '状态', trackers: '追踪器', phases: '阶段', teams: '团队与身份', score: '计分表', campaign: '战役',
     participants: '参与者', addParticipant: '添加参与者', sourceGame: '当前对局', localOnly: '扩展参与者', remove: '删除',
     activeTemplate: '当前模板', coverage: '当前工作台', coverageText: '状态 · 阶段 · 团队 · 私密身份 · 计分 · 战役',
     emptyParticipants: '还没有参与者。可以同步主应用玩家，或在编辑模式单独添加。', savedLocal: '全部数据只保存在本机。',
     quickStart: '今天需要什么？', quickStartHelp: '先选一个最接近的场景，之后只在需要时调整。',
     addTracker: '添加追踪器', trackerName: '名称', scope: '范围', global: '公共', participant: '每位玩家', team: '每个团队', step: '步长', min: '最小', max: '最大',
     persistence: '保留到', sessionOnly: '本局', campaignPersist: '战役', noTrackers: '当前没有追踪器。',
+    addStatus: '添加状态', noStatuses: '还没有状态开关。', statusHint: '状态是轻量开关；“新场景 / 下一局”会恢复到默认值。', defaultOn: '默认开启', customStatus: '新状态', on: '开启', off: '关闭',
     addPhase: '添加阶段', cycle: '循环', previous: '上一步', next: '下一步', noPhases: '当前没有阶段。', phaseNote: '备注', openTimer: '去主计时器',
     addTeam: '添加团队', noTeams: '当前没有团队。', members: '成员', role: '身份', faction: '阵营', secret: '私密', note: '主持备注', reveal: '交给玩家查看', hide: '看完了', clear: '清除',
     adoptTeams: '采用工具箱分队', noRandomTeams: '工具箱里还没有随机分队结果。', teamsAdopted: '已采用工具箱最近一次分队。',
@@ -36,26 +38,27 @@ const I18N = {
     noScoreFields: '当前没有计分栏。', formulaHelp: '公式支持变量、数字、+ − × ÷ 和括号，例如 base + bonus - penalty。',
     campaignEnabled: '启用战役记录', campaignName: '战役名称', chapter: '章节 / 场景', sessionNumber: '第几局', notes: '跨局备注', flags: '检查点 / 解锁项', addFlag: '添加检查点', noFlags: '还没有检查点。',
     imported: '已导入高级助手数据。', importFailed: '导入失败：文件不是有效的桌面 OS 数据。', exported: '已导出。', synced: '已同步当前对局玩家。',
-    confirmTemplate: '应用模板会重置追踪器、阶段、团队、身份和高级计分表，但保留参与者。继续吗？', confirmReset: '开始新场景会重置“本局”追踪器、身份和高级计分值，保留“战役”追踪器，并推进战役局数。继续吗？',
+    confirmTemplate: '应用模板会重置状态、追踪器、阶段、团队、身份和高级计分表，但保留参与者。继续吗？', confirmReset: '开始新场景会把状态恢复到默认值，重置“本局”追踪器、身份和高级计分值，保留“战役”追踪器，并推进战役局数。继续吗？',
     limit: '已达到上限。', customParticipant: '新参与者', customTracker: '新追踪器', customPhase: '新阶段', customTeam: '新团队', customField: '新栏位', customFormula: '计算栏', customFlag: '新检查点',
     revealFor: '仅给这位玩家看', passDevice: '请先把设备交给对应玩家。身份现在仍然隐藏。', revealNow: '这是我，查看身份', noRole: '尚未设置身份',
     templateHint: '模板只是可编辑的工作流起点，不替代官方规则。', moderatorNoteHidden: '主持备注不会显示给玩家。',
     myTemplates: '我的模板', saveMyTemplate: '保存当前配置', applyMyTemplate: '应用我的模板', renameMyTemplate: '重命名', deleteMyTemplate: '删除模板',
-    myTemplateHint: '只保存在本机，只保存追踪器、阶段、团队结构和计分公式；不保存玩家、身份、当前数值或战役内容。', myTemplateEmpty: '还没有我的模板', myTemplateDefault: '我的模板', customSetup: '自定义配置',
+    myTemplateHint: '只保存在本机，只保存状态定义、追踪器、阶段、团队结构和计分公式；不保存玩家、身份、当前状态/数值或战役内容。', myTemplateEmpty: '还没有我的模板', myTemplateDefault: '我的模板', customSetup: '自定义配置',
     myTemplateNamePrompt: '模板名称', myTemplateSaved: '已保存为我的模板。', myTemplateRenamed: '模板已重命名。', myTemplateDeleted: '模板已删除。', myTemplateLimit: '我的模板最多保存 12 个。',
-    confirmMyTemplate: '应用我的模板会重置追踪器、阶段、团队、身份和高级计分表，但保留参与者与战役记忆。继续吗？', confirmDeleteMyTemplate: '删除这个本机模板吗？'
+    confirmMyTemplate: '应用我的模板会重置状态、追踪器、阶段、团队、身份和高级计分表，但保留参与者与战役记忆。继续吗？', confirmDeleteMyTemplate: '删除这个本机模板吗？'
   },
   en: {
     launcher: 'Table OS', title: 'Advanced Table Assistant', subtitle: 'Play mode keeps only live table controls visible; configuration stays in Edit mode.',
     close: 'Close', sync: 'Sync game players', template: 'Assistant template', apply: 'Apply', reset: 'New scenario / rematch', export: 'Export', import: 'Import',
     playMode: 'Play', editMode: 'Edit setup', editHint: 'Templates, structure and advanced settings only appear in Edit mode.',
-    overview: 'Overview', trackers: 'Trackers', phases: 'Phases', teams: 'Teams & roles', score: 'Score sheet', campaign: 'Campaign',
+    overview: 'Overview', statuses: 'Statuses', trackers: 'Trackers', phases: 'Phases', teams: 'Teams & roles', score: 'Score sheet', campaign: 'Campaign',
     participants: 'Participants', addParticipant: 'Add participant', sourceGame: 'Game roster', localOnly: 'Assistant-only', remove: 'Remove',
     activeTemplate: 'Active template', coverage: 'Active workspace', coverageText: 'State · phases · teams · private roles · scoring · campaign',
     emptyParticipants: 'No participants yet. Sync the main game roster or add assistant-only participants in Edit mode.', savedLocal: 'Everything stays on this device.',
     quickStart: 'What do you need tonight?', quickStartHelp: 'Choose the closest starting point; tune it only when necessary.',
     addTracker: 'Add tracker', trackerName: 'Name', scope: 'Scope', global: 'Shared', participant: 'Per player', team: 'Per team', step: 'Step', min: 'Min', max: 'Max',
     persistence: 'Keep for', sessionOnly: 'Session', campaignPersist: 'Campaign', noTrackers: 'No trackers yet.',
+    addStatus: 'Add status', noStatuses: 'No status toggles yet.', statusHint: 'Statuses are lightweight toggles; New scenario / rematch restores their defaults.', defaultOn: 'Default on', customStatus: 'New status', on: 'On', off: 'Off',
     addPhase: 'Add phase', cycle: 'Cycle', previous: 'Previous', next: 'Next', noPhases: 'No phases yet.', phaseNote: 'Note', openTimer: 'Open main timer',
     addTeam: 'Add team', noTeams: 'No teams yet.', members: 'Members', role: 'Role', faction: 'Faction', secret: 'Private', note: 'Moderator note', reveal: 'Pass to player', hide: 'Done', clear: 'Clear',
     adoptTeams: 'Use toolbox teams', noRandomTeams: 'There is no recent random-team result in the toolbox.', teamsAdopted: 'Latest toolbox teams adopted.',
@@ -63,14 +66,14 @@ const I18N = {
     noScoreFields: 'No score fields yet.', formulaHelp: 'Formulas support variables, numbers, + − × ÷ and parentheses, e.g. base + bonus - penalty.',
     campaignEnabled: 'Enable campaign record', campaignName: 'Campaign name', chapter: 'Chapter / scenario', sessionNumber: 'Session', notes: 'Persistent notes', flags: 'Checkpoints / unlocks', addFlag: 'Add checkpoint', noFlags: 'No checkpoints yet.',
     imported: 'Advanced assistant data imported.', importFailed: 'Import failed: this is not valid Table OS data.', exported: 'Exported.', synced: 'Game roster synced.',
-    confirmTemplate: 'Applying a template resets trackers, phases, teams, roles and the advanced score sheet while preserving participants. Continue?', confirmReset: 'Starting a new scenario resets session trackers, roles and advanced scores, preserves campaign trackers, and advances the campaign session. Continue?',
+    confirmTemplate: 'Applying a template resets statuses, trackers, phases, teams, roles and the advanced score sheet while preserving participants. Continue?', confirmReset: 'Starting a new scenario restores status defaults, resets session trackers, roles and advanced scores, preserves campaign trackers, and advances the campaign session. Continue?',
     limit: 'Limit reached.', customParticipant: 'New participant', customTracker: 'New tracker', customPhase: 'New phase', customTeam: 'New team', customField: 'New field', customFormula: 'Calculated field', customFlag: 'New checkpoint',
     revealFor: 'For this player only', passDevice: 'Pass the device to the matching player first. The role is still hidden.', revealNow: 'This is me — reveal role', noRole: 'No role assigned',
     templateHint: 'Templates are editable workflow starters, not replacements for official rules.', moderatorNoteHidden: 'Moderator notes are never shown in player reveal.',
     myTemplates: 'My templates', saveMyTemplate: 'Save current setup', applyMyTemplate: 'Apply my template', renameMyTemplate: 'Rename', deleteMyTemplate: 'Delete template',
-    myTemplateHint: 'Stored only on this device. Saves tracker, phase, team structure and score formulas — never players, roles, live values or campaign content.', myTemplateEmpty: 'No saved templates yet', myTemplateDefault: 'My template', customSetup: 'Custom setup',
+    myTemplateHint: 'Stored only on this device. Saves status definitions, tracker, phase, team structure and score formulas — never players, roles, live status/value state or campaign content.', myTemplateEmpty: 'No saved templates yet', myTemplateDefault: 'My template', customSetup: 'Custom setup',
     myTemplateNamePrompt: 'Template name', myTemplateSaved: 'Saved to My templates.', myTemplateRenamed: 'Template renamed.', myTemplateDeleted: 'Template deleted.', myTemplateLimit: 'My templates can store up to 12 setups.',
-    confirmMyTemplate: 'Applying My template resets trackers, phases, teams, roles and the advanced score sheet while preserving participants and campaign memory. Continue?', confirmDeleteMyTemplate: 'Delete this local template?'
+    confirmMyTemplate: 'Applying My template resets statuses, trackers, phases, teams, roles and the advanced score sheet while preserving participants and campaign memory. Continue?', confirmDeleteMyTemplate: 'Delete this local template?'
   }
 };
 
@@ -191,12 +194,13 @@ function templateDescription(template) {
 }
 
 function hasConfiguredWorkspace() {
-  return Boolean(state.trackers.length || state.phases.items.length || state.teams.length || state.roles.length || state.scoreSheet.fields.length || state.campaign.enabled || state.campaign.flags.length);
+  return Boolean(state.statuses.length || state.trackers.length || state.phases.items.length || state.teams.length || state.roles.length || state.scoreSheet.fields.length || state.campaign.enabled || state.campaign.flags.length);
 }
 
 function visibleSections() {
   if (state.ui.mode === 'edit') return SECTION_IDS;
   const ids = ['overview'];
+  if (state.statuses.length) ids.push('statuses');
   if (state.trackers.length) ids.push('trackers');
   if (state.phases.items.length) ids.push('phases');
   if (state.teams.length || state.roles.length) ids.push('teams');
@@ -406,6 +410,7 @@ function renderEditorToolbar() {
 }
 
 function renderSection() {
+  if (state.ui.activeSection === 'statuses') return renderStatuses();
   if (state.ui.activeSection === 'trackers') return renderTrackers();
   if (state.ui.activeSection === 'phases') return renderPhases();
   if (state.ui.activeSection === 'teams') return renderTeamsRoles();
@@ -446,6 +451,33 @@ function renderOverview() {
         <div class="tableos-person" style="--person:${participant.color}"><span class="tableos-dot"></span><input value="${attr(participant.name)}" data-os-participant-name="${participant.id}" maxlength="32"><small>${esc(participant.sourcePlayerId ? tr('sourceGame') : tr('localOnly'))}</small><button class="tableos-mini danger" type="button" data-os-remove-participant="${participant.id}" aria-label="${attr(tr('remove'))}">×</button></div>` : `
         <div class="tableos-person tableos-person-readonly" style="--person:${participant.color}"><span class="tableos-dot"></span><strong>${esc(participant.name)}</strong><small>${esc(participant.sourcePlayerId ? tr('sourceGame') : tr('localOnly'))}</small></div>`).join('')}</div>` : `<p class="tableos-empty">${esc(tr('emptyParticipants'))}</p>`}
     </section>`;
+}
+
+function statusEntityName(status, entityId) {
+  if (status.scope === 'participant') return participantById(entityId)?.name || entityId;
+  if (status.scope === 'team') return teamById(entityId)?.name || entityId;
+  return tr('global');
+}
+
+function renderStatuses() {
+  return `<section class="tableos-card">
+    <div class="tableos-card-head"><div><span>${esc(tr('statuses'))}</span><h3>${state.statuses.length}${state.ui.mode === 'edit' ? ` / ${MAX_STATUSES}` : ''}</h3></div>${state.ui.mode === 'edit' ? `<button class="tableos-btn primary" type="button" data-os-action="add-status">${esc(tr('addStatus'))}</button>` : ''}</div>
+    ${state.ui.mode === 'edit' ? `<p class="tableos-help">${esc(tr('statusHint'))}</p>` : ''}
+    <div class="tableos-stack">${state.statuses.map(status => renderStatus(status)).join('') || `<p class="tableos-empty">${esc(tr('noStatuses'))}</p>`}</div>
+  </section>`;
+}
+
+function renderStatus(status) {
+  const entities = statusEntityIds(state, status);
+  const editor = state.ui.mode === 'edit' ? `<div class="tableos-module-head tableos-status-head">
+      <input class="tableos-title-input" value="${attr(status.name)}" data-os-status-name="${status.id}" maxlength="32">
+      <select data-os-status-scope="${status.id}"><option value="global" ${status.scope === 'global' ? 'selected' : ''}>${esc(tr('global'))}</option><option value="participant" ${status.scope === 'participant' ? 'selected' : ''}>${esc(tr('participant'))}</option><option value="team" ${status.scope === 'team' ? 'selected' : ''}>${esc(tr('team'))}</option></select>
+      <label class="tableos-switch tableos-status-default"><input type="checkbox" data-os-status-initial="${status.id}" ${status.initial ? 'checked' : ''}><span>${esc(tr('defaultOn'))}</span></label>
+      <button class="tableos-mini danger" type="button" data-os-remove-status="${status.id}">×</button>
+    </div>` : `<div class="tableos-live-head"><strong>${esc(status.name)}</strong><span>${esc(tr(status.scope))}</span></div>`;
+  return `<article class="tableos-module">${editor}
+    <div class="tableos-status-grid">${entities.length ? entities.map(entityId => { const active = statusValue(status, entityId); return `<button type="button" class="tableos-status-toggle ${active ? 'active' : ''}" data-os-status-toggle="${status.id}|${entityId}" aria-pressed="${active ? 'true' : 'false'}"><span>${esc(statusEntityName(status, entityId))}</span><strong>${esc(active ? tr('on') : tr('off'))}</strong></button>`; }).join('') : `<p class="tableos-empty">${status.scope === 'team' ? esc(tr('noTeams')) : esc(tr('emptyParticipants'))}</p>`}</div>
+  </article>`;
 }
 
 function renderTrackers() {
@@ -634,7 +666,7 @@ async function importFile(file) {
 
 function bindEvents() {
   document.addEventListener('click', event => {
-    const target = event.target instanceof Element ? event.target.closest('[data-os-action],[data-os-mode],[data-os-section],[data-os-quick-template],[data-os-remove-participant],[data-os-tracker-delta],[data-os-remove-tracker],[data-os-phase-active],[data-os-remove-phase],[data-os-remove-team],[data-os-role-reveal],[data-os-role-clear],[data-os-remove-score],[data-os-flag-toggle],[data-os-flag-remove]') : null;
+    const target = event.target instanceof Element ? event.target.closest('[data-os-action],[data-os-mode],[data-os-section],[data-os-quick-template],[data-os-remove-participant],[data-os-status-toggle],[data-os-remove-status],[data-os-tracker-delta],[data-os-remove-tracker],[data-os-phase-active],[data-os-remove-phase],[data-os-remove-team],[data-os-role-reveal],[data-os-role-clear],[data-os-remove-score],[data-os-flag-toggle],[data-os-flag-remove]') : null;
     if (!target) return;
     const d = target.dataset;
     if (d.osAction === 'close') { if (event.target.closest('.tableos-sheet') && !event.target.closest('[data-os-action="close"]')) return; closeTableOs(); return; }
@@ -656,6 +688,9 @@ function bindEvents() {
     if (d.osAction === 'adopt-teams') { adoptRandomTeams(); return; }
     if (d.osAction === 'add-participant') { if (!addParticipant(state, tr('customParticipant'))) flash(tr('limit')); else { persist(); render(); } return; }
     if (d.osRemoveParticipant) { removeParticipant(state, d.osRemoveParticipant); persist(); render(); return; }
+    if (d.osAction === 'add-status') { if (!addStatus(state, { name: tr('customStatus') })) flash(tr('limit')); else { persist(); render(); } return; }
+    if (d.osRemoveStatus) { removeStatus(state, d.osRemoveStatus); persist(); render(); return; }
+    if (d.osStatusToggle) { const [statusId, entityId] = d.osStatusToggle.split('|'); toggleStatus(state, statusId, entityId); persist(); render(); return; }
     if (d.osAction === 'add-tracker') { if (!addTracker(state, { name: tr('customTracker') })) flash(tr('limit')); else { persist(); render(); } return; }
     if (d.osRemoveTracker) { removeTracker(state, d.osRemoveTracker); persist(); render(); return; }
     if (d.osTrackerDelta) { const [trackerId, entityId, delta] = d.osTrackerDelta.split('|'); adjustTracker(state, trackerId, entityId, Number(delta)); persist(); render(); return; }
@@ -684,6 +719,9 @@ function bindEvents() {
     if (d.osUserTemplate !== undefined) { selectedUserTemplateId = element.value; render(); return; }
     if (element.id === 'tableos-import-file') { importFile(element.files?.[0]); element.value = ''; return; }
     if (d.osParticipantName) { renameParticipant(state, d.osParticipantName, element.value); persist(); return; }
+    if (d.osStatusName) { const status = state.statuses.find(item => item.id === d.osStatusName); if (status) status.name = element.value.trim().slice(0, 32) || tr('customStatus'); saveAndRender(); return; }
+    if (d.osStatusScope) { const status = state.statuses.find(item => item.id === d.osStatusScope); if (status) { status.scope = ['global', 'participant', 'team'].includes(element.value) ? element.value : 'global'; status.values = {}; } saveAndRender(); return; }
+    if (d.osStatusInitial !== undefined) { const status = state.statuses.find(item => item.id === d.osStatusInitial); if (status) { status.initial = element instanceof HTMLInputElement ? element.checked : false; status.values = {}; } saveAndRender(); return; }
     if (d.osTrackerName) { mutateTracker(d.osTrackerName, { name: element.value.trim().slice(0, 32) || tr('customTracker') }); saveAndRender(); return; }
     if (d.osTrackerScope) { mutateTracker(d.osTrackerScope, { scope: ['global', 'participant', 'team'].includes(element.value) ? element.value : 'global', values: {} }); saveAndRender(); return; }
     if (d.osTrackerPersistence) { setTrackerPersistence(state, d.osTrackerPersistence, element.value); persist(); render(); return; }

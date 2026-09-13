@@ -29,3 +29,9 @@ The following are release blockers rather than optional polish:
 - Existing basic timer/scoring flows must remain unchanged by Table OS work.
 
 The production Android signing key, Apple distribution identity/profile and store-console metadata remain external release prerequisites and are not fabricated by CI.
+
+### Status toggle lifecycle
+
+- Unit: normalization from older schema, entity validation/pruning, shelf limit, default restoration on new scenario, localized built-in statuses.
+- Unit: My Templates preserve status definitions but exclude live values and participant identifiers.
+- Chromium: Card Battle Poisoned/Stunned toggles, Hidden Roles Alive default, new-scenario reset, custom global status, template privacy/fresh apply, and same-session reload persistence.

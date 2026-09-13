@@ -1,13 +1,14 @@
-export const TABLE_OS_SCHEMA_VERSION = 2;
+export const TABLE_OS_SCHEMA_VERSION = 3;
 export const TABLE_OS_STORAGE_KEY = 'board-game-assistant-table-os-v1';
 export const MAX_TABLE_OS_PARTICIPANTS = 32;
 export const MAX_TRACKERS = 24;
+export const MAX_STATUSES = 24;
 export const MAX_PHASES = 20;
 export const MAX_TEAMS = 8;
 export const MAX_SCORE_FIELDS = 16;
 export const MAX_CAMPAIGN_FLAGS = 40;
 export const MAX_USER_TEMPLATES = 12;
-export const USER_TEMPLATE_VERSION = 1;
+export const USER_TEMPLATE_VERSION = 2;
 
 const DEFAULT_COLORS = [
   '#f97316', '#14b8a6', '#3b82f6', '#eab308', '#ef4444', '#8b5cf6',
@@ -165,6 +166,9 @@ export const ASSISTANT_TEMPLATES = [
     trackers: [
       { name: '存活人数', scope: 'team', value: 0, min: 0, max: 32, step: 1 }
     ],
+    statuses: [
+      { name: '存活', scope: 'participant', initial: true }
+    ],
     scoreFields: [
       { key: 'wins', name: '胜局', kind: 'manual', step: 1, effect: 1, includeInTotal: true }
     ],
@@ -178,8 +182,11 @@ export const ASSISTANT_TEMPLATES = [
     phases: ['准备', '主要阶段', '战斗', '结束'],
     trackers: [
       { name: '生命', scope: 'participant', value: 20, min: 0, max: 999, step: 1 },
-      { name: '资源', scope: 'participant', value: 0, min: 0, max: 999, step: 1 },
-      { name: '状态', scope: 'participant', value: 0, min: 0, max: 99, step: 1 }
+      { name: '资源', scope: 'participant', value: 0, min: 0, max: 999, step: 1 }
+    ],
+    statuses: [
+      { name: '中毒', scope: 'participant', initial: false },
+      { name: '眩晕', scope: 'participant', initial: false }
     ],
     scoreFields: [
       { key: 'wins', name: '胜局', kind: 'manual', step: 1, effect: 1, includeInTotal: true }
@@ -248,11 +255,13 @@ const EN_TEMPLATE_CONTENT = {
   'hidden-role': {
     phases: ['Setup', 'Open discussion', 'Private phase', 'Vote / Resolution', 'Resolve'],
     trackers: ['Alive count'],
+    statuses: ['Alive'],
     scoreFields: ['Wins']
   },
   'card-battle': {
     phases: ['Setup', 'Main phase', 'Combat', 'End'],
-    trackers: ['Health', 'Resources', 'Status'],
+    trackers: ['Health', 'Resources'],
+    statuses: ['Poisoned', 'Stunned'],
     scoreFields: ['Wins']
   },
   campaign: {
@@ -305,6 +314,12 @@ function trackerFromTemplate(input, index = 0) {
   };
 }
 
+function statusFromTemplate(input, index = 0) {
+  const status = input && typeof input === 'object' ? input : {};
+  const scope = ['global', 'participant', 'team'].includes(status.scope) ? status.scope : 'global';
+  return { id: identifier(status.id, 'status_'), name: text(status.name || `Status ${index + 1}`, 32), scope, initial: Boolean(status.initial), values: status.values && typeof status.values === 'object' ? { ...status.values } : {} };
+}
+
 function scoreFieldFromTemplate(input, index = 0, usedKeys = null) {
   const field = input && typeof input === 'object' ? input : {};
   const candidate = scoreKey(field.key || field.name, index);
@@ -348,6 +363,20 @@ function normalizeTrackers(value) {
     Object.entries(normalized.values || {}).forEach(([entityId, raw]) => {
       values[identifier(entityId, 'entity_')] = integer(raw, normalized.initial, normalized.min, normalized.max);
     });
+    normalized.values = values;
+    return normalized;
+  });
+}
+
+function normalizeStatuses(value) {
+  if (!Array.isArray(value)) return [];
+  const used = new Set();
+  return value.slice(0, MAX_STATUSES).map((status, index) => {
+    const normalized = statusFromTemplate(status, index);
+    while (used.has(normalized.id)) normalized.id = uid('status_');
+    used.add(normalized.id);
+    const values = {};
+    Object.entries(normalized.values || {}).forEach(([entityId, raw]) => { values[identifier(entityId, 'entity_')] = Boolean(raw); });
     normalized.values = values;
     return normalized;
   });
@@ -469,6 +498,7 @@ export function createDefaultTableOsState() {
     appliedTemplateId: 'universal',
     participants: [],
     trackers: [],
+    statuses: [],
     phases: { items: [], activeIndex: 0, cycle: 1 },
     teams: [],
     roles: [],
@@ -489,13 +519,14 @@ export function normalizeTableOsState(input) {
     appliedTemplateId: normalizeAppliedTemplateId(input.appliedTemplateId),
     participants,
     trackers: normalizeTrackers(input.trackers),
+    statuses: normalizeStatuses(input.statuses),
     phases: normalizePhases(input.phases),
     teams: normalizeTeams(input.teams, participantIds),
     roles: normalizeRoles(input.roles, participantIds),
     scoreSheet: normalizeScoreSheet(input.scoreSheet, participantIds),
     campaign: normalizeCampaign(input.campaign),
     ui: {
-      activeSection: ['overview', 'trackers', 'phases', 'teams', 'score', 'campaign'].includes(input.ui?.activeSection)
+      activeSection: ['overview', 'statuses', 'trackers', 'phases', 'teams', 'score', 'campaign'].includes(input.ui?.activeSection)
         ? input.ui.activeSection
         : 'overview',
       // Edit mode is intentionally ephemeral. Reload/import always returns to the safer live-play surface.
@@ -562,6 +593,10 @@ function pruneParticipantReferences(state) {
     if (tracker.scope !== 'participant') return;
     Object.keys(tracker.values || {}).forEach(id => { if (!valid.has(id)) delete tracker.values[id]; });
   });
+  state.statuses.forEach(status => {
+    if (status.scope !== 'participant') return;
+    Object.keys(status.values || {}).forEach(id => { if (!valid.has(id)) delete status.values[id]; });
+  });
 }
 
 export function addTracker(state, { name = 'Tracker', scope = 'global', initial = 0, min = 0, max = 999, step = 1, persistence = 'session' } = {}) {
@@ -616,6 +651,51 @@ export function adjustTracker(state, trackerId, entityId, delta) {
   if (!tracker) return false;
   const target = tracker.scope === 'global' ? 'global' : entityId;
   return setTrackerValue(state, trackerId, target, trackerValue(tracker, target) + Number(delta || 0));
+}
+
+export function addStatus(state, { name = 'Status', scope = 'global', initial = false } = {}) {
+  if (state.statuses.length >= MAX_STATUSES) return null;
+  const status = statusFromTemplate({ name, scope, initial, values: {} }, state.statuses.length);
+  state.statuses.push(status);
+  touch(state);
+  return status;
+}
+
+export function removeStatus(state, statusId) {
+  const index = state.statuses.findIndex(status => status.id === statusId);
+  if (index < 0) return false;
+  state.statuses.splice(index, 1);
+  touch(state);
+  return true;
+}
+
+export function statusEntityIds(state, status) {
+  if (!status) return [];
+  if (status.scope === 'participant') return state.participants.map(participant => participant.id);
+  if (status.scope === 'team') return state.teams.map(team => team.id);
+  return ['global'];
+}
+
+export function statusValue(status, entityId = 'global') {
+  if (!status) return false;
+  return Object.prototype.hasOwnProperty.call(status.values || {}, entityId) ? Boolean(status.values[entityId]) : Boolean(status.initial);
+}
+
+export function setStatusValue(state, statusId, entityId, value) {
+  const status = state.statuses.find(item => item.id === statusId);
+  if (!status) return false;
+  const target = status.scope === 'global' ? 'global' : entityId;
+  if (!new Set(statusEntityIds(state, status)).has(target)) return false;
+  status.values[target] = Boolean(value);
+  touch(state);
+  return true;
+}
+
+export function toggleStatus(state, statusId, entityId = 'global') {
+  const status = state.statuses.find(item => item.id === statusId);
+  if (!status) return false;
+  const target = status.scope === 'global' ? 'global' : entityId;
+  return setStatusValue(state, statusId, target, !statusValue(status, target));
 }
 
 export function addPhase(state, name = '') {
@@ -675,6 +755,7 @@ export function removeTeam(state, teamId) {
   if (index < 0) return false;
   state.teams.splice(index, 1);
   state.trackers.forEach(tracker => { if (tracker.scope === 'team') delete tracker.values?.[teamId]; });
+  state.statuses.forEach(status => { if (status.scope === 'team') delete status.values?.[teamId]; });
   touch(state);
   return true;
 }
@@ -870,6 +951,7 @@ export function removeCampaignFlag(state, flagId) {
 export function normalizeUserTemplate(input) {
   const source = input && typeof input === 'object' ? input : {};
   const trackerSource = Array.isArray(source.trackers) ? source.trackers : [];
+  const statusSource = Array.isArray(source.statuses) ? source.statuses : [];
   const phaseSource = Array.isArray(source.phases) ? source.phases : Array.isArray(source.phases?.items) ? source.phases.items : [];
   const teamSource = Array.isArray(source.teams) ? source.teams : [];
   const scoreSource = Array.isArray(source.scoreFields) ? source.scoreFields : Array.isArray(source.scoreSheet?.fields) ? source.scoreSheet.fields : [];
@@ -893,6 +975,10 @@ export function normalizeUserTemplate(input) {
         step: normalized.step,
         initial: normalized.initial
       };
+    }),
+    statuses: statusSource.slice(0, MAX_STATUSES).map((status, index) => {
+      const normalized = statusFromTemplate({ ...status, values: {} }, index);
+      return { name: normalized.name, scope: normalized.scope, initial: normalized.initial };
     }),
     phases: phaseSource.slice(0, MAX_PHASES).map((phase, index) => ({
       name: text(phase?.name || `Phase ${index + 1}`, 32),
@@ -923,6 +1009,7 @@ export function createUserTemplateFromState(state, name = 'My template') {
     id: uid('ut_'),
     name,
     trackers: state.trackers,
+    statuses: state.statuses,
     phases: state.phases.items,
     teams: state.teams,
     scoreFields: state.scoreSheet.fields,
@@ -932,6 +1019,7 @@ export function createUserTemplateFromState(state, name = 'My template') {
 
 function resetTemplateModules(state) {
   state.trackers = [];
+  state.statuses = [];
   state.phases = { items: [], activeIndex: 0, cycle: 1 };
   state.teams = [];
   state.roles = [];
@@ -945,6 +1033,7 @@ export function applyUserTemplate(state, input, { preserveParticipants = true } 
   state.participants = participants;
   state.appliedTemplateId = `user:${template.id}`;
   state.phases.items = template.phases.map(phase => ({ id: uid('phase_'), name: phase.name, note: phase.note }));
+  state.statuses = template.statuses.map((status, index) => statusFromTemplate({ ...status, values: {} }, index));
   state.trackers = template.trackers.map((tracker, index) => trackerFromTemplate({
     ...tracker,
     value: tracker.initial,
@@ -980,6 +1069,11 @@ export function applyAssistantTemplate(state, templateId, { preserveParticipants
     ...tracker,
     name: translated?.trackers?.[index] || tracker.name
   }, index));
+  state.statuses = (template.statuses || []).slice(0, MAX_STATUSES).map((status, index) => statusFromTemplate({
+    ...status,
+    name: translated?.statuses?.[index] || status.name,
+    values: {}
+  }, index));
   const usedKeys = new Set();
   state.scoreSheet.fields = template.scoreFields.slice(0, MAX_SCORE_FIELDS).map((field, index) => scoreFieldFromTemplate({
     ...field,
@@ -1000,6 +1094,7 @@ export function resetTableOsSession(state) {
   state.trackers.forEach(tracker => {
     if (tracker.persistence !== 'campaign') tracker.values = {};
   });
+  state.statuses.forEach(status => { status.values = {}; });
   state.phases.activeIndex = 0;
   state.phases.cycle = 1;
   state.roles = [];
