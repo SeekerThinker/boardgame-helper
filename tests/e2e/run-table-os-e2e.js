@@ -67,11 +67,12 @@ async function runPrimaryFlow() {
   const page = await context.newPage();
   const errors = [];
   const promptResponses = [];
+  const confirmMessages = [];
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   page.on('pageerror', error => errors.push(error.message));
   page.on('dialog', async dialog => {
     if (dialog.type() === 'prompt') await dialog.accept(promptResponses.shift() || dialog.defaultValue() || '');
-    else await dialog.accept();
+    else { confirmMessages.push(dialog.message()); await dialog.accept(); }
   });
 
   await page.goto(url, { waitUntil: 'networkidle' });
@@ -108,9 +109,18 @@ async function runPrimaryFlow() {
   for (let index = 0; index < 5; index += 1) await page.locator('[data-os-remove-participant]').last().click();
   assert.equal(await page.locator('[data-os-participant-name]').count(), 4, 'test cleanup returns to the synchronized four-player roster');
 
+  // Destructive template reset must explicitly disclose that table entities are removed.
+  await page.getByRole('button', { name: '添加实体' }).click();
+  const disclosureEntity = page.locator('[data-os-entity-name]').first();
+  await disclosureEntity.fill('测试 Boss'); await disclosureEntity.blur();
+  const builtInConfirmCount = confirmMessages.length;
+
   // Apply a cooperative template; application intentionally returns to Play mode.
   await page.locator('[data-os-template]').selectOption('coop-crisis');
   await page.getByRole('button', { name: '应用模板' }).click();
+  assert.equal(confirmMessages.length, builtInConfirmCount + 1, 'built-in template application asks for confirmation');
+  assert.match(confirmMessages.at(-1), /桌面实体/, 'built-in template confirmation discloses entity reset');
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1')).entities.length), 0, 'confirmed built-in template reset removes prior entities');
   assert.ok(await page.getByRole('button', { name: '牌局模式' }).getAttribute('class').then(value => value.includes('active')));
   await page.getByRole('button', { name: '追踪器', exact: true }).click();
   const trackerNames = await page.locator('.tableos-live-head strong').allTextContents();
@@ -329,7 +339,13 @@ async function runPrimaryFlow() {
   await page.locator('[data-os-template]').selectOption('universal');
   await page.getByRole('button', { name: '应用模板', exact: true }).click();
   await editMode(page);
+  await page.getByRole('button', { name: '添加实体' }).click();
+  const myTemplateDisclosureEntity = page.locator('[data-os-entity-name]').first();
+  await myTemplateDisclosureEntity.fill('临时目标'); await myTemplateDisclosureEntity.blur();
+  const myTemplateConfirmCount = confirmMessages.length;
   await page.getByRole('button', { name: '应用我的模板', exact: true }).click();
+  assert.equal(confirmMessages.length, myTemplateConfirmCount + 1, 'My Template application asks for confirmation');
+  assert.match(confirmMessages.at(-1), /桌面实体/, 'My Template confirmation discloses entity reset');
   await page.getByRole('button', { name: '追踪器', exact: true }).click();
   assert.equal(await page.locator('[data-os-tracker-value]').first().inputValue(), '1', 'applying My Template restores initial tracker state, not saved live value');
   const appliedTemplateState = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1')));
@@ -388,7 +404,7 @@ async function run() {
     checks: [
       'play/edit separation', 'purpose-first quick start', 'roster sync', 'universal trackers', 'phase engine',
       'toolbox-team bridge', 'two-stage private role reveal', 'moderator-note isolation', 'formula score sheet', 'unary formula operators', 'modal focus trap', 'nested reveal focus return', 'launcher focus return',
-      'pagehide draft flush', 'escape-close draft flush', 'campaign tracker persistence', 'campaign reload persistence', '320px mobile', 'tablet', 'dynamic bilingual UI'
+      'pagehide draft flush', 'escape-close draft flush', 'campaign tracker persistence', 'campaign reload persistence', 'template entity destructive disclosure', '320px mobile', 'tablet', 'dynamic bilingual UI'
     ]
   }, null, 2));
 }

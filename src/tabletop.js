@@ -40,14 +40,14 @@ const I18N = {
     noScoreFields: '当前没有计分栏。', formulaHelp: '公式支持变量、数字、+ − × ÷ 和括号，例如 base + bonus - penalty。',
     campaignEnabled: '启用战役记录', campaignName: '战役名称', chapter: '章节 / 场景', sessionNumber: '第几局', notes: '跨局备注', flags: '检查点 / 解锁项', addFlag: '添加检查点', noFlags: '还没有检查点。',
     imported: '已导入高级助手数据。', importFailed: '导入失败：文件不是有效的桌面 OS 数据。', exported: '已导出。', synced: '已同步当前对局玩家。',
-    confirmTemplate: '应用模板会重置状态、追踪器、阶段、团队、身份和高级计分表，但保留参与者。继续吗？', confirmReset: '开始新场景会把状态恢复到默认值，重置“本局”追踪器、身份和高级计分值，保留“战役”追踪器，并推进战役局数。继续吗？',
+    confirmTemplate: '应用模板会重置桌面实体、状态、追踪器、阶段、团队、身份和高级计分表，但保留参与者。继续吗？', confirmReset: '开始新场景会把状态恢复到默认值，重置“本局”追踪器、身份和高级计分值，保留“战役”追踪器，并推进战役局数。继续吗？',
     limit: '已达到上限。', customParticipant: '新参与者', customTracker: '新追踪器', customPhase: '新阶段', customTeam: '新团队', customField: '新栏位', customFormula: '计算栏', customFlag: '新检查点',
     revealFor: '仅给这位玩家看', passDevice: '请先把设备交给对应玩家。身份现在仍然隐藏。', revealNow: '这是我，查看身份', noRole: '尚未设置身份',
     templateHint: '模板只是可编辑的工作流起点，不替代官方规则。', moderatorNoteHidden: '主持备注不会显示给玩家。',
     myTemplates: '我的模板', saveMyTemplate: '保存当前配置', applyMyTemplate: '应用我的模板', renameMyTemplate: '重命名', deleteMyTemplate: '删除模板',
     myTemplateHint: '只保存在本机，只保存实体定义、状态定义、追踪器、阶段、团队结构和计分公式；不保存玩家、身份、当前状态/数值或战役内容。', myTemplateEmpty: '还没有我的模板', myTemplateDefault: '我的模板', customSetup: '自定义配置',
     myTemplateNamePrompt: '模板名称', myTemplateSaved: '已保存为我的模板。', myTemplateRenamed: '模板已重命名。', myTemplateDeleted: '模板已删除。', myTemplateLimit: '我的模板最多保存 12 个。',
-    confirmMyTemplate: '应用我的模板会重置状态、追踪器、阶段、团队、身份和高级计分表，但保留参与者与战役记忆。继续吗？', confirmDeleteMyTemplate: '删除这个本机模板吗？'
+    confirmMyTemplate: '应用我的模板会重置桌面实体、状态、追踪器、阶段、团队、身份和高级计分表，但保留参与者与战役记忆。继续吗？', confirmDeleteMyTemplate: '删除这个本机模板吗？'
   },
   en: {
     launcher: 'Table OS', title: 'Advanced Table Assistant', subtitle: 'Play mode keeps only live table controls visible; configuration stays in Edit mode.',
@@ -69,14 +69,14 @@ const I18N = {
     noScoreFields: 'No score fields yet.', formulaHelp: 'Formulas support variables, numbers, + − × ÷ and parentheses, e.g. base + bonus - penalty.',
     campaignEnabled: 'Enable campaign record', campaignName: 'Campaign name', chapter: 'Chapter / scenario', sessionNumber: 'Session', notes: 'Persistent notes', flags: 'Checkpoints / unlocks', addFlag: 'Add checkpoint', noFlags: 'No checkpoints yet.',
     imported: 'Advanced assistant data imported.', importFailed: 'Import failed: this is not valid Table OS data.', exported: 'Exported.', synced: 'Game roster synced.',
-    confirmTemplate: 'Applying a template resets statuses, trackers, phases, teams, roles and the advanced score sheet while preserving participants. Continue?', confirmReset: 'Starting a new scenario restores status defaults, resets session trackers, roles and advanced scores, preserves campaign trackers, and advances the campaign session. Continue?',
+    confirmTemplate: 'Applying a template resets table entities, statuses, trackers, phases, teams, roles and the advanced score sheet while preserving participants. Continue?', confirmReset: 'Starting a new scenario restores status defaults, resets session trackers, roles and advanced scores, preserves campaign trackers, and advances the campaign session. Continue?',
     limit: 'Limit reached.', customParticipant: 'New participant', customTracker: 'New tracker', customPhase: 'New phase', customTeam: 'New team', customField: 'New field', customFormula: 'Calculated field', customFlag: 'New checkpoint',
     revealFor: 'For this player only', passDevice: 'Pass the device to the matching player first. The role is still hidden.', revealNow: 'This is me — reveal role', noRole: 'No role assigned',
     templateHint: 'Templates are editable workflow starters, not replacements for official rules.', moderatorNoteHidden: 'Moderator notes are never shown in player reveal.',
     myTemplates: 'My templates', saveMyTemplate: 'Save current setup', applyMyTemplate: 'Apply my template', renameMyTemplate: 'Rename', deleteMyTemplate: 'Delete template',
     myTemplateHint: 'Stored only on this device. Saves entity and status definitions, tracker, phase, team structure and score formulas — never players, roles, live status/value state or campaign content.', myTemplateEmpty: 'No saved templates yet', myTemplateDefault: 'My template', customSetup: 'Custom setup',
     myTemplateNamePrompt: 'Template name', myTemplateSaved: 'Saved to My templates.', myTemplateRenamed: 'Template renamed.', myTemplateDeleted: 'Template deleted.', myTemplateLimit: 'My templates can store up to 12 setups.',
-    confirmMyTemplate: 'Applying My template resets statuses, trackers, phases, teams, roles and the advanced score sheet while preserving participants and campaign memory. Continue?', confirmDeleteMyTemplate: 'Delete this local template?'
+    confirmMyTemplate: 'Applying My template resets table entities, statuses, trackers, phases, teams, roles and the advanced score sheet while preserving participants and campaign memory. Continue?', confirmDeleteMyTemplate: 'Delete this local template?'
   }
 };
 
