@@ -839,6 +839,24 @@ export function setRole(state, participantId, { role = '', faction = '', note = 
   return true;
 }
 
+export function replaceCharacterAssignmentsFromText(state, input = '') {
+  const lines = String(input ?? '')
+    .split(/\r?\n/)
+    .map(item => item.trim())
+    .filter(Boolean);
+  if (!lines.length) return { requested: 0, assigned: 0, limitReached: false, changed: false };
+  const assignments = lines.slice(0, state.participants.length);
+  state.roles = [];
+  assignments.forEach((line, index) => {
+    const separatorIndex = line.search(/[|｜\t]/);
+    const role = separatorIndex >= 0 ? line.slice(0, separatorIndex) : line;
+    const faction = separatorIndex >= 0 ? line.slice(separatorIndex + 1) : '';
+    setRole(state, state.participants[index].id, { role, faction });
+  });
+  touch(state);
+  return { requested: lines.length, assigned: state.roles.length, limitReached: lines.length > state.participants.length, changed: true };
+}
+
 export function clearRole(state, participantId) {
   const before = state.roles.length;
   state.roles = state.roles.filter(role => role.participantId !== participantId);

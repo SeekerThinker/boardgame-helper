@@ -164,6 +164,26 @@ async function runPrimaryFlow() {
   await page.keyboard.press('Escape');
   assert.equal(await firstRoleReveal.evaluate(element => element === document.activeElement), true, 'closing private reveal returns focus to its trigger');
 
+  // Large-table moderator setup can replace a whole ordered character list without carrying stale host notes forward.
+  await editMode(page);
+  await page.getByRole('button', { name: '团队与身份', exact: true }).click();
+  await page.getByText('批量设置身份', { exact: true }).click();
+  await page.locator('[data-os-bulk-characters]').fill('预言家 | 村民\n狼人 | 狼人阵营\n守卫 | 村民\n村民');
+  await page.getByRole('button', { name: '替换身份列表', exact: true }).click();
+  const batchSnapshot = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1')));
+  assert.deepEqual(batchSnapshot.roles.map(item => [item.role, item.faction]), [['预言家', '村民'], ['狼人', '狼人阵营'], ['守卫', '村民'], ['村民', '']]);
+  assert.equal(batchSnapshot.roles.every(item => item.note === ''), true, 'batch replacement clears old host notes');
+  assert.equal(JSON.stringify(batchSnapshot.roles).includes('主持人机密'), false, 'retired host notes do not survive replacement');
+  await page.getByRole('button', { name: '牌局模式' }).click();
+  await page.getByRole('button', { name: '团队与身份', exact: true }).click();
+  await page.locator('[data-os-role-reveal]').first().click();
+  assert.equal(await page.getByText('预言家', { exact: true }).count(), 0, 'replacement character stays hidden before player confirmation');
+  await page.getByRole('button', { name: '这是我，查看身份' }).click();
+  assert.ok(await page.getByText('预言家', { exact: true }).isVisible());
+  assert.ok(await page.getByText('村民', { exact: true }).isVisible());
+  assert.equal(await page.getByText(/主持人机密/).count(), 0, 'retired host note never enters the replacement reveal DOM');
+  await page.keyboard.press('Escape');
+
   // Session bridge: recent random teams from the basic toolbox can be adopted without rebuilding them manually.
   await page.evaluate(() => {
     const key = 'board-game-assistant-state-v2';

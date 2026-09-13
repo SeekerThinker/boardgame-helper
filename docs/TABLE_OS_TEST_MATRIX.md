@@ -4,9 +4,9 @@ Table OS is treated as a compatibility layer on top of the existing timer/scorin
 
 | Gate | Coverage |
 | --- | --- |
-| Node unit tests | roster sync, participant bounds, bulk roster parsing/cap safety, built-in templates, privacy-safe My Templates snapshots/apply, template-safe campaign persistence, tracker scopes/clamps, session-vs-campaign tracker persistence, phase cycles, team/role reference cleanup, safe formula parsing, score calculations, campaign persistence, serialization/normalization |
+| Node unit tests | roster sync, participant bounds, bulk roster parsing/cap safety, moderator batch assignment/privacy cleanup, built-in templates, privacy-safe My Templates snapshots/apply, template-safe campaign persistence, tracker scopes/clamps, session-vs-campaign tracker persistence, phase cycles, team/role reference cleanup, safe formula parsing, score calculations, campaign persistence, serialization/normalization |
 | Existing Chromium E2E | bilingual setup, accessibility, timer/scoring flow, history/rematch, tools, settings, offline reload, narrow mobile widths and tablet layout |
-| Table OS Chromium E2E | default Play mode, purpose-first quick start, Edit mode, roster sync, bulk roster paste without main-roster mutation, universal trackers, phase engine, toolbox-team bridge, two-stage private role reveal, moderator-note isolation, formula score sheet, campaign tracker lifetime, campaign reload persistence, campaign survival across built-in/My Template changes, local My Templates save/rename/apply/delete with transient/private-data exclusion, dynamic bilingual UI |
+| Table OS Chromium E2E | default Play mode, purpose-first quick start, Edit mode, roster sync, bulk roster paste without main-roster mutation, ordered moderator assignment replacement, universal trackers, phase engine, toolbox-team bridge, two-stage private role reveal, moderator-note isolation, formula score sheet, campaign tracker lifetime, campaign reload persistence, campaign survival across built-in/My Template changes, local My Templates save/rename/apply/delete with transient/private-data exclusion, dynamic bilingual UI |
 | Table OS responsive smoke | no horizontal overflow at 320px phone, 390px phone and tablet widths; Play/Edit mode controls remain usable |
 | Subpath PWA E2E | `/boardgame-helper/` relative assets, manifest, scoped Service Worker, offline reload and privacy navigation |
 | Store assets | five focused screenshots per device/locale: flow, scoring, Table OS live play, tools and results; generated dimensions and duplicate detection remain mandatory |
@@ -67,3 +67,10 @@ The production Android signing key, Apple distribution identity/profile and stor
 - Unit: duplicate 24-character keys terminate safely with a unique suffix; variable names are normalized to formula-safe identifiers.
 - Unit: renaming a ScoreSheet variable rewrites exact formula references, resolves collisions deterministically, and preserves calculated results.
 - Chromium: Edit setup can rename two variables to the same requested name; the UI shows unique keys, updates the formula text, and keeps the live calculated score unchanged.
+
+
+### Large-table moderator assignment
+
+- Unit: ordered pasted assignments are bounded by the current participant roster and empty input is non-destructive.
+- Unit/privacy: whole-list replacement clears retired moderator notes so old hidden context cannot attach to new characters or survive serialization/export.
+- Chromium: Edit setup replaces a four-player identity/faction list in one action, keeps the existing two-stage reveal flow, and proves the retired moderator note is absent from persisted assignments and the player reveal DOM.
