@@ -225,7 +225,7 @@
   gap: .15rem;
 }
 .tableos-phase-timer-field small {
-  color: var(--tableos-muted);
+  color: #64748b;
   font-weight: 400;
 }
 .tableos-phase-timer-field input {

@@ -465,7 +465,7 @@ async function run() {
   console.log(JSON.stringify({
     event: 'table-os-e2e-summary', status: 'PASS',
     checks: [
-      'play/edit separation', 'purpose-first quick start', 'roster sync', 'universal trackers', 'phase engine', 'phase checklist lifecycle',
+      'play/edit separation', 'purpose-first quick start', 'roster sync', 'universal trackers', 'phase engine', 'phase checklist lifecycle', 'phase timer bridge',
       'toolbox-team bridge', 'two-stage private role reveal', 'moderator-note isolation', 'formula score sheet', 'unary formula operators', 'modal focus trap', 'nested reveal focus return', 'launcher focus return',
       'pagehide draft flush', 'escape-close draft flush', 'campaign tracker persistence', 'campaign reload persistence', 'template entity destructive disclosure', '320px mobile', 'tablet', 'dynamic bilingual UI'
     ]
