@@ -9,7 +9,7 @@ import {
 test('older Table OS state normalizes with an empty status shelf', () => {
   const state = normalizeTableOsState({ schemaVersion: 2, participants: [], trackers: [] });
   assert.deepEqual(state.statuses, []);
-  assert.equal(state.schemaVersion, 3);
+  assert.equal(state.schemaVersion, 4);
 });
 
 test('participant and team statuses validate entities and prune removed references', () => {
