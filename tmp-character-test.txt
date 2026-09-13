@@ -1,0 +1,1 @@
+game character assignment uses the existing roles collection
