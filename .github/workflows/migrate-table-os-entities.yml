@@ -19,6 +19,10 @@ jobs:
         run: |
           python3 entity-core.txt
           sed -i "s/name = 'Tracker, scope/name = 'Tracker', scope/" src/tabletop-core.js
+          python3 entity-ui.txt
+          python3 entity-migration.txt
+          python3 entity-tests.txt
+          sed -i 's/assert.equal(state.schemaVersion, 3);/assert.equal(state.schemaVersion, 4);/' tests/unit/tabletop-statuses.test.js
       - name: Install dependencies
         run: npm ci
       - name: Install Chromium
@@ -31,5 +35,5 @@ jobs:
           git add -A
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git commit -m "feat: add lightweight table entities core"
+          git commit -m "feat: add lightweight table entities"
           git push
