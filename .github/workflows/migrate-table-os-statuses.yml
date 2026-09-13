@@ -1,0 +1,41 @@
+name: Migrate Table OS statuses
+
+on:
+  push:
+    branches:
+      - feat/table-os-status-toggles-20260913
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feat/table-os-status-toggles-20260913
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+      - run: node scripts/migrate-table-os-status-core.mjs
+      - run: node scripts/migrate-table-os-status-core-2.mjs
+      - run: node scripts/migrate-table-os-status-ui.mjs
+      - run: node scripts/migrate-table-os-status-render.mjs
+      - run: node scripts/migrate-table-os-status-events.mjs
+      - run: node scripts/migrate-table-os-status-css.mjs
+      - run: node scripts/migrate-table-os-status-meta.mjs
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run check
+      - name: Finalize feature tree
+        run: |
+          git rm scripts/migrate-table-os-status-core.mjs scripts/migrate-table-os-status-core-2.mjs scripts/migrate-table-os-status-ui.mjs scripts/migrate-table-os-status-render.mjs scripts/migrate-table-os-status-events.mjs scripts/migrate-table-os-status-css.mjs scripts/migrate-table-os-status-meta.mjs .github/workflows/migrate-table-os-statuses.yml
+          git add -A
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "feat: add lightweight Table OS status toggles"
+          git push origin HEAD:feat/table-os-status-toggles-20260913
