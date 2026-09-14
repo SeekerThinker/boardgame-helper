@@ -25,7 +25,15 @@ jobs:
           node-version: 22
           cache: npm
       - name: Apply migration
-        run: python .github/scripts/migrate-draw-bag.py
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('.github/scripts/migrate-draw-bag.py')
+          text = p.read_text()
+          text = text.replace("'tools.history': 'Recent results'", "'tools.history': 'Recent Results'")
+          p.write_text(text)
+          PY
+          python .github/scripts/migrate-draw-bag.py
       - name: Install dependencies
         run: npm ci
       - name: Install Chromium
