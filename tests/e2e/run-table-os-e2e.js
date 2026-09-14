@@ -271,6 +271,14 @@ async function runPrimaryFlow() {
   assert.equal(await page.getByRole('button', { name: '采用工具箱分队' }).count(), 0, 'team-roster replacement stays out of Play mode');
   await editMode(page);
   assert.equal(await page.getByRole('button', { name: '团队与身份', exact: true }).getAttribute('aria-current'), 'page', 'switching to Edit keeps the live Teams section in context');
+  await page.getByRole('button', { name: '添加团队', exact: true }).click();
+  const teamsBeforeAdopt = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1')).teams);
+  const adoptConfirmCount = confirmMessages.length;
+  dismissNextConfirm = true;
+  await page.getByRole('button', { name: '采用工具箱分队' }).click();
+  assert.equal(confirmMessages.length, adoptConfirmCount + 1, 'replacing existing teams asks for confirmation in Edit setup');
+  assert.match(confirmMessages.at(-1), /替换现有团队.*团队范围的状态和追踪值/, 'team replacement disclosure names the live values that will be cleared');
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1')).teams), teamsBeforeAdopt, 'canceling toolbox team replacement leaves existing teams untouched');
   await page.getByRole('button', { name: '采用工具箱分队' }).click();
   await page.getByRole('button', { name: '牌局模式' }).click();
   assert.equal(await page.getByRole('button', { name: '团队与身份', exact: true }).getAttribute('aria-current'), 'page', 'returning to Play keeps Teams selected after roster replacement');

@@ -35,7 +35,7 @@ const I18N = {
     addStatus: '添加状态', noStatuses: '还没有状态开关。', statusHint: '状态是轻量开关；“新场景 / 下一局”会恢复到默认值。', defaultOn: '默认开启', customStatus: '新状态', on: '开启', off: '关闭',
     addPhase: '添加阶段', cycle: '循环', previous: '上一步', next: '下一步', noPhases: '当前没有阶段。', phaseNote: '备注', openTimer: '去主计时器', phaseTimerSeconds: '阶段计时（秒）', phaseTimerHelp: '0 表示不配置。只有点击“载入主计时器”才会生效；切换阶段不会自动覆盖计时。', loadPhaseTimer: '载入主计时器', phaseChecklist: '阶段清单', phaseChecklistHelp: '每行一项；牌局模式可直接勾选。跨 cycle 或开始新场景时自动清空完成状态。', phaseChecklistPlaceholder: '执行阶段能力\n补充公共资源',
     addTeam: '添加团队', noTeams: '当前没有团队。', members: '成员', role: '身份', faction: '阵营', secret: '私密', note: '主持备注', reveal: '交给玩家查看', hide: '看完了', clear: '清除', bulkCharacters: '批量设置身份', bulkCharactersHelp: '每行对应一位参与者（按当前顺序）；可写“身份 | 阵营”或用制表符分隔。应用后会替换全部身份/阵营并清除旧主持备注；玩家查看流程保持不变。', bulkCharactersPlaceholder: '预言家 | 村民\n狼人 | 狼人阵营\n守卫 | 村民', replaceCharacters: '替换身份列表', charactersReplaced: '已批量设置身份：', bulkCharactersEmpty: '没有可应用的身份。', confirmBulkCharacters: '这会替换全部现有身份/阵营并清除旧主持备注。继续吗？',
-    adoptTeams: '采用工具箱分队', noRandomTeams: '工具箱里还没有随机分队结果。', teamsAdopted: '已采用工具箱最近一次分队。',
+    adoptTeams: '采用工具箱分队', noRandomTeams: '工具箱里还没有随机分队结果。', teamsAdopted: '已采用工具箱最近一次分队。', confirmAdoptTeams: '采用工具箱分队会替换现有团队，并清除旧团队范围的状态和追踪值。继续吗？',
     addScoreField: '添加计分栏', addFormula: '添加公式栏', fieldName: '栏位', key: '变量', formula: '公式', effect: '计入', total: '总分', included: '计入总分', excluded: '仅显示',
     scoreRanking: '排名方式', highestTotal: '高分优先', lowestTotal: '低分优先', standings: '当前排名', tied: '并列', unranked: '待修正', rankingFormulaError: '存在影响总分的无效公式，修正后再参与排名。',
     noScoreFields: '当前没有计分栏。', formulaHelp: '公式支持变量、数字、+ − × ÷ 和括号，例如 base + bonus - penalty。', formulaError: '公式无效，请检查变量名或循环引用。',
@@ -65,7 +65,7 @@ const I18N = {
     addStatus: 'Add status', noStatuses: 'No status toggles yet.', statusHint: 'Statuses are lightweight toggles; New scenario / rematch restores their defaults.', defaultOn: 'Default on', customStatus: 'New status', on: 'On', off: 'Off',
     addPhase: 'Add phase', cycle: 'Cycle', previous: 'Previous', next: 'Next', noPhases: 'No phases yet.', phaseNote: 'Note', openTimer: 'Open main timer', phaseTimerSeconds: 'Phase timer (sec)', phaseTimerHelp: 'Use 0 for none. It only changes the main timer when you tap “Load main timer”; phase changes never overwrite timing automatically.', loadPhaseTimer: 'Load main timer', phaseChecklist: 'Phase checklist', phaseChecklistHelp: 'One item per line. Toggle items during play; completion resets when the cycle changes or a new scenario starts.', phaseChecklistPlaceholder: 'Resolve phase ability\nRefill shared supply',
     addTeam: 'Add team', noTeams: 'No teams yet.', members: 'Members', role: 'Role', faction: 'Faction', secret: 'Private', note: 'Moderator note', reveal: 'Pass to player', hide: 'Done', clear: 'Clear', bulkCharacters: 'Paste character list', bulkCharactersHelp: 'One line per participant in current order. Use “Role | Faction” or a tab separator. Applying replaces all assignments and clears old moderator notes; player reveal behavior stays unchanged.', bulkCharactersPlaceholder: 'Seer | Town\nWolf | Wolves\nGuard | Town', replaceCharacters: 'Replace character list', charactersReplaced: 'Assignments applied:', bulkCharactersEmpty: 'No assignments to apply.', confirmBulkCharacters: 'This replaces all existing assignments and clears old moderator notes. Continue?',
-    adoptTeams: 'Use toolbox teams', noRandomTeams: 'There is no recent random-team result in the toolbox.', teamsAdopted: 'Latest toolbox teams adopted.',
+    adoptTeams: 'Use toolbox teams', noRandomTeams: 'There is no recent random-team result in the toolbox.', teamsAdopted: 'Latest toolbox teams adopted.', confirmAdoptTeams: 'Using toolbox teams replaces the current teams and clears status/tracker values scoped to the old teams. Continue?',
     addScoreField: 'Add score field', addFormula: 'Add formula', fieldName: 'Field', key: 'Variable', formula: 'Formula', effect: 'Effect', total: 'Total', included: 'Included', excluded: 'Display only',
     scoreRanking: 'Ranking mode', highestTotal: 'Highest total first', lowestTotal: 'Lowest total first', standings: 'Standings', tied: 'Tie', unranked: 'Fix score', rankingFormulaError: 'An invalid formula affects the total. Fix it before this player is ranked.',
     noScoreFields: 'No score fields yet.', formulaHelp: 'Formulas support variables, numbers, + − × ÷ and parentheses, e.g. base + bonus - penalty.', formulaError: 'Invalid formula. Check variable names or circular references.',
@@ -678,6 +678,7 @@ function adoptRandomTeams() {
     name: locale() === 'zh' ? `${index + 1}队` : `Team ${index + 1}`,
     memberIds: (Array.isArray(sourceTeam.playerIds) ? sourceTeam.playerIds : []).map(id => bySource.get(String(id))).filter(Boolean)
   }));
+  if (state.teams.length && !confirm(tr('confirmAdoptTeams'))) return;
   replaceTeams(state, teams);
   persist();
   flash(tr('teamsAdopted'));
