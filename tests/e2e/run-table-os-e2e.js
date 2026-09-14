@@ -268,7 +268,12 @@ async function runPrimaryFlow() {
     ];
     localStorage.setItem(key, JSON.stringify(game));
   });
+  assert.equal(await page.getByRole('button', { name: '采用工具箱分队' }).count(), 0, 'team-roster replacement stays out of Play mode');
+  await editMode(page);
+  assert.equal(await page.getByRole('button', { name: '团队与身份', exact: true }).getAttribute('aria-current'), 'page', 'switching to Edit keeps the live Teams section in context');
   await page.getByRole('button', { name: '采用工具箱分队' }).click();
+  await page.getByRole('button', { name: '牌局模式' }).click();
+  assert.equal(await page.getByRole('button', { name: '团队与身份', exact: true }).getAttribute('aria-current'), 'page', 'returning to Play keeps Teams selected after roster replacement');
   assert.equal(await page.locator('.tableos-team-live').count(), 2);
 
   // Formula scoring stays powerful, but configuration is hidden during live play.
