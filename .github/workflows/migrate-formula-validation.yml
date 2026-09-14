@@ -1,0 +1,42 @@
+name: Migrate formula validation
+
+on:
+  push:
+    branches:
+      - fix/table-os-formula-validation
+    paths:
+      - .github/workflows/migrate-formula-validation.yml
+      - .github/scripts/migrate-formula-validation.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: fix/table-os-formula-validation
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply migration
+        run: python .github/scripts/migrate-formula-validation.py
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run full check
+        run: npm run check
+      - name: Commit product tree and remove temporary files
+        run: |
+          rm .github/scripts/migrate-formula-validation.py .github/workflows/migrate-formula-validation.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: validate score formula dependencies"
+          git push origin HEAD:fix/table-os-formula-validation
