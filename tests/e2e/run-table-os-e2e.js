@@ -307,6 +307,26 @@ async function runPrimaryFlow() {
   await page.getByRole('button', { name: '计分表', exact: true }).click();
   assert.equal(await page.locator('.tableos-score-table > article').first().locator('output').last().textContent(), '5', 'variable renames preserve the live formula result');
 
+  // Formula typos are correctness failures, not implicit zero-valued variables.
+  await editMode(page);
+  await page.getByRole('button', { name: '计分表', exact: true }).click();
+  const renamedFormula = page.locator('[data-os-score-formula]').first();
+  await renamedFormula.fill('points + missing_bonus');
+  await renamedFormula.blur();
+  await page.getByRole('button', { name: '牌局模式' }).click();
+  await page.getByRole('button', { name: '计分表', exact: true }).click();
+  const formulaWarning = page.locator('[data-os-score-error]').first();
+  assert.equal(await formulaWarning.textContent(), '⚠', 'unknown score variable is visibly rejected');
+  assert.match(await formulaWarning.getAttribute('title'), /公式无效/, 'formula warning explains the invalid configuration');
+  await editMode(page);
+  await page.getByRole('button', { name: '计分表', exact: true }).click();
+  await page.locator('[data-os-score-formula]').first().fill('-(points + points_2) / -2 + objective - penalty');
+  await page.locator('[data-os-score-formula]').first().blur();
+  await page.getByRole('button', { name: '牌局模式' }).click();
+  await page.getByRole('button', { name: '计分表', exact: true }).click();
+  assert.equal(await page.locator('[data-os-score-error]').count(), 0, 'correcting the formula clears the warning');
+  assert.equal(await page.locator('.tableos-score-table > article').first().locator('output').last().textContent(), '5', 'corrected formula restores the calculated result');
+
   // A focused live value is flushed synchronously before page lifecycle interruption, even without blur/change.
   const interruptedScore = page.locator('[data-os-score-value]').first();
   const interruptedScoreKey = await interruptedScore.getAttribute('data-os-score-value');
@@ -466,7 +486,7 @@ async function run() {
     event: 'table-os-e2e-summary', status: 'PASS',
     checks: [
       'play/edit separation', 'purpose-first quick start', 'roster sync', 'universal trackers', 'phase engine', 'phase checklist lifecycle', 'phase timer bridge',
-      'toolbox-team bridge', 'two-stage private role reveal', 'moderator-note isolation', 'formula score sheet', 'unary formula operators', 'modal focus trap', 'nested reveal focus return', 'launcher focus return',
+      'toolbox-team bridge', 'two-stage private role reveal', 'moderator-note isolation', 'formula score sheet', 'unary formula operators', 'formula typo validation', 'modal focus trap', 'nested reveal focus return', 'launcher focus return',
       'pagehide draft flush', 'escape-close draft flush', 'campaign tracker persistence', 'campaign reload persistence', 'template entity destructive disclosure', '320px mobile', 'tablet', 'dynamic bilingual UI'
     ]
   }, null, 2));
