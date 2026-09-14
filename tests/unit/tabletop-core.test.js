@@ -187,6 +187,7 @@ test('formula evaluator only accepts arithmetic and variables', () => {
   assert.equal(evaluateFormula('a / -(b - b)', { a: 8, b: 3 }).ok, false, 'division by unary zero stays rejected');
   assert.equal(evaluateFormula('globalThis.alert(1)', {}).ok, false, 'function calls are rejected');
   assert.equal(evaluateFormula('1 / 0', {}).ok, false, 'division by zero is rejected');
+  assert.deepEqual(evaluateFormula('base + bonuz', { base: 10 }), { ok: false, value: 0, error: 'unknown-variable' }, 'unknown variables are rejected instead of silently becoming zero');
 });
 
 test('score sheet combines manual and calculated fields without double-counting display formulas', () => {
@@ -204,6 +205,31 @@ test('score sheet combines manual and calculated fields without double-counting 
 
   assert.equal(card.variables.net, 13);
   assert.equal(card.total, 13, 'manual included fields use their effects; display formula is not counted again');
+});
+
+
+test('score sheet resolves formula dependencies and rejects typo or circular formulas', () => {
+  const state = createDefaultTableOsState();
+  const player = addParticipant(state, 'A');
+  const base = addScoreSheetField(state, { name: 'Base', key: 'base' });
+  const grand = addScoreSheetField(state, { name: 'Grand', key: 'grand', kind: 'formula', formula: 'double + 1', includeInTotal: false });
+  const doubled = addScoreSheetField(state, { name: 'Double', key: 'double', kind: 'formula', formula: 'base * 2', includeInTotal: false });
+  const typo = addScoreSheetField(state, { name: 'Typo', key: 'typo', kind: 'formula', formula: 'base + bonuz', includeInTotal: true });
+  const loopA = addScoreSheetField(state, { name: 'Loop A', key: 'loop_a', kind: 'formula', formula: 'loop_b + 1', includeInTotal: true });
+  const loopB = addScoreSheetField(state, { name: 'Loop B', key: 'loop_b', kind: 'formula', formula: 'loop_a + 1', includeInTotal: true });
+
+  setScoreSheetValue(state, player.id, base.id, 5);
+  const card = scoreCardForParticipant(state, player.id);
+
+  assert.equal(card.values[doubled.id], 10, 'formula dependency can be declared after its consumer');
+  assert.equal(card.values[grand.id], 11, 'dependent formula resolves after its dependency');
+  assert.equal(card.values[typo.id], 0);
+  assert.equal(card.errors[typo.id], 'unknown-variable', 'typo does not silently alter settlement math');
+  assert.equal(card.values[loopA.id], 0);
+  assert.equal(card.values[loopB.id], 0);
+  assert.equal(card.errors[loopA.id], 'circular-reference');
+  assert.equal(card.errors[loopB.id], 'circular-reference');
+  assert.equal(card.total, 5, 'invalid included formulas contribute zero and remain explicitly flagged');
 });
 
 test('campaign reset preserves campaign trackers and clears session trackers', () => {

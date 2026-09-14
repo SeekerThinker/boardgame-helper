@@ -1056,7 +1056,10 @@ export function evaluateFormula(expression, variables = {}) {
     const token = take();
     if (token == null) throw new Error('invalid-expression');
     if (/^\d/.test(token)) return Number(token);
-    if (/^[A-Za-z_]/.test(token)) return number(variables[token], 0);
+    if (/^[A-Za-z_]/.test(token)) {
+      if (!Object.prototype.hasOwnProperty.call(variables, token)) throw new Error('unknown-variable');
+      return number(variables[token], 0);
+    }
     if (token === '(') {
       const value = parseExpression();
       if (take() !== ')') throw new Error('unbalanced-parentheses');
@@ -1117,25 +1120,89 @@ export function scoreCardForParticipant(state, participantId) {
   const rawValues = state.scoreSheet.values?.[participantId] || {};
   const variables = {};
   const values = {};
+  const errors = {};
+  const fieldsByKey = new Map(state.scoreSheet.fields.map(field => [field.key, field]));
+  const resolved = new Set();
+  const visiting = [];
+
   state.scoreSheet.fields.forEach(field => {
-    if (field.kind !== 'manual') return;
-    const value = number(rawValues[field.id], 0);
-    values[field.id] = value;
-    variables[field.key] = value;
+    if (field.kind === 'manual') {
+      const value = number(rawValues[field.id], 0);
+      values[field.id] = value;
+      variables[field.key] = value;
+    } else {
+      values[field.id] = 0;
+      variables[field.key] = 0;
+    }
   });
-  for (let pass = 0; pass < state.scoreSheet.fields.length; pass += 1) {
-    state.scoreSheet.fields.forEach(field => {
-      if (field.kind !== 'formula') return;
-      const evaluated = evaluateFormula(field.formula, variables);
-      values[field.id] = evaluated.ok ? evaluated.value : 0;
-      variables[field.key] = values[field.id];
+
+  const markCycle = fieldId => {
+    const start = visiting.indexOf(fieldId);
+    const cycle = start >= 0 ? visiting.slice(start) : [fieldId];
+    cycle.forEach(id => { errors[id] = 'circular-reference'; });
+  };
+
+  const evaluateField = field => {
+    if (field.kind !== 'formula') return true;
+    if (resolved.has(field.id)) return !errors[field.id];
+    if (visiting.includes(field.id)) {
+      markCycle(field.id);
+      return false;
+    }
+
+    visiting.push(field.id);
+    let tokens;
+    try {
+      tokens = tokenizeFormula(field.formula);
+    } catch (error) {
+      errors[field.id] = error.message || 'invalid-expression';
+      visiting.pop();
+      resolved.add(field.id);
+      return false;
+    }
+
+    const dependencies = [...new Set(tokens.filter(token => /^[A-Za-z_]/.test(token)))];
+    let valid = true;
+    dependencies.forEach(key => {
+      const dependency = fieldsByKey.get(key);
+      if (!dependency) {
+        errors[field.id] ||= 'unknown-variable';
+        valid = false;
+        return;
+      }
+      if (dependency.kind === 'formula' && !evaluateField(dependency)) {
+        errors[field.id] ||= 'dependency-error';
+        valid = false;
+      }
     });
-  }
+
+    if (errors[field.id]) valid = false;
+    if (valid) {
+      const evaluated = evaluateFormula(field.formula, variables);
+      if (evaluated.ok) {
+        values[field.id] = evaluated.value;
+        variables[field.key] = evaluated.value;
+      } else {
+        errors[field.id] = evaluated.error || 'invalid-expression';
+        valid = false;
+      }
+    }
+    if (!valid) {
+      values[field.id] = 0;
+      variables[field.key] = 0;
+    }
+
+    visiting.pop();
+    resolved.add(field.id);
+    return valid;
+  };
+
+  state.scoreSheet.fields.forEach(field => { if (field.kind === 'formula') evaluateField(field); });
   const total = state.scoreSheet.fields.reduce((sum, field) => {
     if (!field.includeInTotal) return sum;
     return sum + number(values[field.id], 0) * field.effect;
   }, 0);
-  return { values, variables, total: Math.round(total * 100) / 100 };
+  return { values, variables, total: Math.round(total * 100) / 100, errors };
 }
 
 export function addCampaignFlag(state, name = '') {
