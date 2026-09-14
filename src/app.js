@@ -6,7 +6,7 @@ import {
   roundScoreValue, setRoundScore, addRoundScore, undoScore, recalculateScores,
   rankedPlayers, totalScore, targetReached, roundTotal, removePlayer, addPlayer,
   addScoreField, removeScoreField, rollDice, flipCoin, chooseFirstPlayer,
-  shufflePlayerOrder, applyShuffledOrder, makeTeams, addToolHistory, clamp, prepareRematch,
+  shufflePlayerOrder, applyShuffledOrder, makeTeams, setDrawBagFromText, drawFromBag, resetDrawBag, addToolHistory, clamp, prepareRematch,
   movePlayer, setPlayerColor
 } from './core.js';
 import { t, fieldName, playerName, formatClock, formatDateTime, signedNumber } from './i18n.js';
@@ -377,6 +377,9 @@ function renderRoundScoreTable(round, locked, compact = false) {
 function renderTools() {
   const first = state.players.find(player => player.id === state.tools.lastFirstPlayerId);
   const shuffled = state.tools.shuffledPlayerIds.map(id => state.players.find(player => player.id === id)).filter(Boolean);
+  const bag = state.tools.drawBag;
+  const lastBagItem = bag.items.find(item => item.id === bag.lastDrawnId);
+  const bagRemaining = bag.remainingIds.length;
   return `
     <section class="tool-intro"><p class="eyebrow">${tr('nav.tools')}</p><h2>${tr('tools.title')}</h2><p>${tr('tools.subtitle')}</p></section>
     <div class="tools-grid">
@@ -386,6 +389,10 @@ function renderTools() {
           <label><span>${tr('tools.modifier')}</span><input data-dice="modifier" type="number" min="-99" max="99" value="${diceConfig.modifier}"></label></div>
         <div class="tool-result random-result" role="status">${renderRandomResult()}</div>
         <div class="split-actions"><button class="primary-action small" type="button" data-action="roll-dice">${tr('tools.roll')}</button><button class="text-btn large" type="button" data-action="flip-coin">${tr('tools.flip')}</button></div>
+      </section>
+      <section class="panel tool-card"><div class="section-head"><div><h2>🎴 ${tr('tools.drawBag')}</h2><p>${tr('tools.drawBagHelp')}</p></div></div>
+        ${bag.items.length ? `<div class="tool-result"><strong>${lastBagItem ? escapeHtml(lastBagItem.label) : escapeHtml(tr('tools.drawBagReady'))}</strong><span>${tr('tools.drawBagRemaining', { remaining: bagRemaining, total: bag.items.length })}</span></div><div class="split-actions"><button class="primary-action small" type="button" data-action="draw-bag" ${bagRemaining ? '' : 'disabled'}>${tr('tools.drawBagDraw')}</button><button class="text-btn large" type="button" data-action="reset-draw-bag">${tr('tools.drawBagReset')}</button></div>` : `<p class="empty-state">${tr('tools.drawBagEmpty')}</p>`}
+        <details class="collapsible" ${bag.items.length ? '' : 'open'}><summary>${tr('tools.drawBagEdit')} · ${bag.items.length}</summary><div class="collapsible-body"><label><span class="label-text">${tr('tools.drawBagList')}</span><textarea rows="5" maxlength="7000" data-draw-bag-list placeholder="${escapeAttr(tr('tools.drawBagPlaceholder'))}">${escapeHtml(bag.items.map(item => item.label).join('\n'))}</textarea></label><button class="text-btn large" type="button" data-action="save-draw-bag">${tr('tools.drawBagSave')}</button></div></details>
       </section>
       <section class="panel tool-card"><div class="section-head"><div><h2>👆 ${tr('tools.first')}</h2><p>${tr('tools.firstHelp')}</p></div></div>
         ${first ? `<div class="tool-result"><strong>${tr('tools.firstResult', { name: displayPlayer(first) })}</strong><button class="text-btn" type="button" data-action="set-first-active">${tr('tools.setActive')}</button></div>` : ''}
@@ -409,6 +416,7 @@ function toolHistoryText(item) {
   if (item.type === 'first') return tr('tools.historyFirst', { name: toolPlayerName(item.playerId) });
   if (item.type === 'order') return tr('tools.historyOrder', { names: (item.playerIds || []).map(toolPlayerName).join(' → ') });
   if (item.type === 'teams') return tr('tools.historyTeams', { count: item.count });
+  if (item.type === 'bag') return tr('tools.historyBag', { label: item.label || '—' });
   return '';
 }
 
@@ -727,6 +735,9 @@ async function handleAction(action, event) {
   if (action === 'shuffle-order') shuffleOrderFlow();
   if (action === 'apply-order') applyOrderFlow();
   if (action === 'make-teams') makeTeamsFlow();
+  if (action === 'save-draw-bag') saveDrawBagFlow();
+  if (action === 'draw-bag') drawBagFlow();
+  if (action === 'reset-draw-bag') { resetDrawBag(state); render(); }
   if (action === 'finish-session') await finishSessionFlow();
   if (action === 'resume-session') resumeSessionFlow();
   if (action === 'new-session') newSessionFlow();
@@ -860,6 +871,21 @@ function loadPhaseTimerFromTableOs(detail = {}) {
   showToast('timer.phaseTimerLoaded', { time: formatClock(seconds) });
   render();
   return true;
+}
+
+function saveDrawBagFlow() {
+  const input = document.querySelector('[data-draw-bag-list]');
+  const result = setDrawBagFromText(state, input instanceof HTMLTextAreaElement ? input.value : '');
+  showToast('tools.drawBagSaved', { count: result.saved });
+  render();
+}
+
+function drawBagFlow() {
+  const item = drawFromBag(state);
+  if (!item) return;
+  addToolHistory(state, { type: 'bag', label: item.label });
+  sFinish();
+  render();
 }
 
 function finishTurnFlow() {

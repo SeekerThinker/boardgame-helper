@@ -1,4 +1,5 @@
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
+export const MAX_DRAW_BAG_ITEMS = 100;
 export const STORAGE_KEY = 'board-game-assistant-state-v2';
 export const LEGACY_STORAGE_KEY = 'board-game-assistant-state-v1';
 export const MAX_PLAYERS = 16;
@@ -136,7 +137,8 @@ export function createDefaultState(locale = 'zh') {
       history: [],
       lastFirstPlayerId: null,
       shuffledPlayerIds: [],
-      teams: []
+      teams: [],
+      drawBag: { items: [], remainingIds: [], lastDrawnId: null }
     },
     settings: {
       soundOn: true,
@@ -268,7 +270,8 @@ export function normalizeState(input, locale = 'zh') {
         : [],
       lastFirstPlayerId: normalizeReferencedPlayerId(input.tools?.lastFirstPlayerId, playerIdMap, playerIds),
       shuffledPlayerIds: normalizePlayerIdList(input.tools?.shuffledPlayerIds, playerIds, playerIdMap),
-      teams: normalizeTeams(input.tools?.teams, playerIds, playerIdMap)
+      teams: normalizeTeams(input.tools?.teams, playerIds, playerIdMap),
+      drawBag: normalizeDrawBag(input.tools?.drawBag)
     },
     settings: {
       ...base.settings,
@@ -309,6 +312,22 @@ function normalizeTeams(value, validIds, idMap = null) {
     index,
     playerIds: normalizePlayerIdList(team?.playerIds, validIds, idMap)
   })).filter(team => team.playerIds.length);
+}
+
+function normalizeDrawBag(value) {
+  const source = value && typeof value === 'object' ? value : {};
+  const used = new Set();
+  const items = (Array.isArray(source.items) ? source.items : []).slice(0, MAX_DRAW_BAG_ITEMS).map((item, index) => {
+    const sourceItem = typeof item === 'string' ? { label: item } : (item && typeof item === 'object' ? item : {});
+    let id = safeIdentifier(sourceItem.id || `bag_${index + 1}`, 'bag_');
+    id = uniqueIdentifier(id, used, 'bag_');
+    used.add(id);
+    return { id, label: String(sourceItem.label ?? '').trim().slice(0, 60) || `Item ${index + 1}` };
+  });
+  const valid = new Set(items.map(item => item.id));
+  const remainingIds = [...new Set((Array.isArray(source.remainingIds) ? source.remainingIds : items.map(item => item.id)).map(String))].filter(id => valid.has(id));
+  const lastDrawnId = valid.has(String(source.lastDrawnId ?? '')) ? String(source.lastDrawnId) : null;
+  return { items, remainingIds, lastDrawnId };
 }
 
 function normalizeToolHistory(entry, playerIdMap = null) {
@@ -440,6 +459,7 @@ export function prepareRematch(state) {
   state.tools.lastFirstPlayerId = null;
   state.tools.shuffledPlayerIds = [];
   state.tools.teams = [];
+  resetDrawBag(state);
   ensureRound(state, state.timer.round);
   recalculateScores(state);
   return state;
@@ -787,6 +807,31 @@ export function makeTeams(state, teamCount = 2, randomSource = globalThis.crypto
   ids.forEach((id, index) => teams[index % safeCount].playerIds.push(id));
   state.tools.teams = teams;
   return teams;
+}
+
+export function setDrawBagFromText(state, input = '') {
+  const labels = String(input ?? '').split(/\r?\n/).map(item => item.trim().slice(0, 60)).filter(Boolean);
+  const saved = labels.slice(0, MAX_DRAW_BAG_ITEMS);
+  const items = saved.map(label => ({ id: uid('bag_'), label }));
+  state.tools.drawBag = { items, remainingIds: items.map(item => item.id), lastDrawnId: null };
+  return { requested: labels.length, saved: items.length, limitReached: labels.length > items.length };
+}
+
+export function drawFromBag(state, randomSource = globalThis.crypto) {
+  const bag = state.tools.drawBag || (state.tools.drawBag = { items: [], remainingIds: [], lastDrawnId: null });
+  if (!bag.remainingIds.length) return null;
+  const index = randomInt(bag.remainingIds.length, randomSource);
+  const [id] = bag.remainingIds.splice(index, 1);
+  const item = bag.items.find(candidate => candidate.id === id) || null;
+  bag.lastDrawnId = item?.id || null;
+  return item;
+}
+
+export function resetDrawBag(state) {
+  const bag = state.tools.drawBag || (state.tools.drawBag = { items: [], remainingIds: [], lastDrawnId: null });
+  bag.remainingIds = bag.items.map(item => item.id);
+  bag.lastDrawnId = null;
+  return bag.remainingIds.length;
 }
 
 export function addToolHistory(state, entry) {

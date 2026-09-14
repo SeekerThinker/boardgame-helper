@@ -103,6 +103,29 @@ async function run() {
   assert.match(await page.locator('.random-result strong').textContent(), /^\d+$/);
   await page.getByRole('button', { name: '抛硬币' }).click();
   assert.match(await page.locator('.random-result strong').textContent(), /^(正面|反面)$/);
+
+  const bagEditor = page.locator('[data-draw-bag-list]');
+  await bagEditor.fill('红门\n蓝门\n绿门');
+  await page.getByRole('button', { name: '保存并重置袋子' }).click();
+  assert.ok(await page.getByText('剩余 3 / 3', { exact: true }).isVisible());
+  await page.getByRole('button', { name: '抽一项', exact: true }).click();
+  let bagState = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-state-v2')).tools.drawBag);
+  assert.equal(bagState.remainingIds.length, 2);
+  const firstBagDrawId = bagState.lastDrawnId;
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByRole('tab', { name: '工具', exact: true }).click();
+  bagState = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-state-v2')).tools.drawBag);
+  assert.equal(bagState.remainingIds.length, 2, 'bag remaining state survives reload');
+  assert.equal(bagState.lastDrawnId, firstBagDrawId);
+  await page.getByRole('button', { name: '抽一项', exact: true }).click();
+  await page.getByRole('button', { name: '抽一项', exact: true }).click();
+  assert.equal(await page.getByRole('button', { name: '抽一项', exact: true }).isDisabled(), true);
+  const exhausted = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-state-v2')).tools.drawBag);
+  assert.equal(exhausted.remainingIds.length, 0);
+  assert.equal(new Set(exhausted.items.map(item => item.id)).size, 3);
+  await page.getByRole('button', { name: '重置袋子', exact: true }).click();
+  assert.ok(await page.getByText('剩余 3 / 3', { exact: true }).isVisible());
+
   await page.getByRole('button', { name: '开始', exact: true }).click();
   await page.getByRole('button', { name: '生成随机顺序' }).click();
   await page.getByRole('button', { name: '开始分队' }).click();
@@ -198,6 +221,10 @@ async function run() {
   assert.ok(await page.getByText('Round 1', { exact: true }).isVisible());
   assert.equal(await page.locator('.player-chip').count(), 4);
   assert.equal(await page.locator('#runningBadge').count(), 0);
+  await page.getByRole('tab', { name: 'Tools', exact: true }).click();
+  const rematchBag = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-state-v2')).tools.drawBag);
+  assert.deepEqual(rematchBag.items.map(item => item.label), ['红门', '蓝门', '绿门']);
+  assert.equal(rematchBag.remainingIds.length, 3, 'rematch resets bag progress but preserves bag definition');
 
   // Share button and archive rematch: restore a past game's setup and roster.
   await page.getByRole('tab', { name: 'Results', exact: true }).click();
@@ -235,7 +262,7 @@ async function run() {
   console.log(JSON.stringify({
     event: 'e2e-summary',
     status: 'PASS',
-    checks: ['bilingual setup', 'locale autodetection', 'accessible controls', 'four-tab workspace', 'tab keyboard navigation', 'progress bar', 'running badge', 'flow quick score', 'roster recolor and reorder', 'weighted scoring', 'undo', 'no-blur tap regression', 'toolbox', 'dice and coin result display', 'session finish/resume', 'game archive', 'rematch keeps players', 'share summary', 'archive rematch', 'frozen results', 'settings keyboard close', 'keep screen awake setting', 'back to setup', 'offline reload', 'privacy return navigation', '320px and 360px overflow', 'tablet layout']
+    checks: ['bilingual setup', 'locale autodetection', 'accessible controls', 'four-tab workspace', 'tab keyboard navigation', 'progress bar', 'running badge', 'flow quick score', 'roster recolor and reorder', 'weighted scoring', 'undo', 'no-blur tap regression', 'toolbox', 'dice and coin result display', 'draw bag without replacement', 'session finish/resume', 'game archive', 'rematch keeps players', 'share summary', 'archive rematch', 'frozen results', 'settings keyboard close', 'keep screen awake setting', 'back to setup', 'offline reload', 'privacy return navigation', '320px and 360px overflow', 'tablet layout']
   }, null, 2));
 }
 
