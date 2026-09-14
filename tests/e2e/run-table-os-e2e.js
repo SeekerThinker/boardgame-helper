@@ -145,7 +145,8 @@ async function runPrimaryFlow() {
 
   // Editing the phase list must not silently move the live pointer when an earlier phase is removed.
   await editMode(page);
-  await page.getByRole('button', { name: '阶段', exact: true }).click();
+  assert.equal(await page.getByRole('button', { name: '阶段', exact: true }).getAttribute('aria-current'), 'page', 'switching to Edit preserves the current live section');
+  assert.ok(await page.locator('[data-os-remove-phase]').first().isVisible(), 'phase editor stays in context after switching to Edit');
   await page.locator('[data-os-remove-phase]').first().click();
   const phaseAfterRemoval = await page.evaluate(() => {
     const stored = JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1'));
@@ -159,7 +160,7 @@ async function runPrimaryFlow() {
   await activeChecklistEditor.fill('处理阶段能力\n补充公共资源');
   await activeChecklistEditor.blur();
   await page.getByRole('button', { name: '牌局模式' }).click();
-  await page.getByRole('button', { name: '阶段', exact: true }).click();
+  assert.equal(await page.getByRole('button', { name: '阶段', exact: true }).getAttribute('aria-current'), 'page', 'switching back to Play preserves the configured section');
   const phaseChecklistItems = page.locator('[data-os-phase-check]');
   assert.equal(await phaseChecklistItems.count(), 2, 'only the active phase exposes its configured checklist in play mode');
   await phaseChecklistItems.first().click();

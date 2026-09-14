@@ -716,7 +716,12 @@ function bindEvents() {
     if (d.osAction === 'close') { if (event.target.closest('.tableos-sheet') && !event.target.closest('[data-os-action="close"]')) return; closeTableOs(); return; }
     if (d.osAction === 'hide-role') { closeRoleReveal(); return; }
     if (d.osAction === 'reveal-role-now') { revealArmed = true; render(); focusRoleReveal(); return; }
-    if (d.osMode) { state.ui.mode = d.osMode === 'edit' ? 'edit' : 'play'; state.ui.activeSection = 'overview'; saveAndRender(); return; }
+    if (d.osMode) {
+      state.ui.mode = d.osMode === 'edit' ? 'edit' : 'play';
+      if (!visibleSections().includes(state.ui.activeSection)) state.ui.activeSection = 'overview';
+      saveAndRender();
+      return;
+    }
     if (d.osSection) { state.ui.activeSection = d.osSection; saveAndRender(); return; }
     if (d.osQuickTemplate) { applyTemplate(d.osQuickTemplate, false); return; }
     if (d.osAction === 'sync') { syncParticipantsFromGame(state, readGamePlayers()); persist(); flash(tr('synced')); return; }

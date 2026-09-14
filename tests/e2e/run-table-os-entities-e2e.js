@@ -68,6 +68,7 @@ async function run() {
   assert.equal(await toggle.getAttribute('aria-pressed'), 'true');
 
   await page.getByRole('button', { name: '编辑配置' }).click();
+  await page.getByRole('button', { name: '总览', exact: true }).click();
   await page.locator(`[data-os-remove-entity="${bossId}"]`).click();
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1')));
   assert.deepEqual(stored.entities.map(item => item.name), ['祭坛']);
