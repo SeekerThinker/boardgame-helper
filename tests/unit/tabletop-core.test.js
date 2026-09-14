@@ -6,7 +6,7 @@ import {
   addTracker, trackerValue, adjustTracker, setTrackerValue, setTrackerPersistence,
   addPhase, setActivePhase, advancePhase,
   addTeam, toggleTeamMember, setRole, roleForParticipant,
-  addScoreSheetField, setScoreSheetValue, evaluateFormula, scoreCardForParticipant,
+  addScoreSheetField, setScoreSheetValue, setScoreRankingMode, evaluateFormula, scoreCardForParticipant, scoreStandings,
   addCampaignFlag, toggleCampaignFlag, applyAssistantTemplate, resetTableOsSession,
   createUserTemplateFromState, applyUserTemplate, normalizeUserTemplate, serializeTableOsState, parseTableOsState
 } from '../../src/tabletop-core.js';
@@ -82,9 +82,11 @@ test('My Templates copy reusable structure without live, private, roster or camp
   const flag = addCampaignFlag(state, 'Unlocked hidden gate');
   toggleCampaignFlag(state, flag.id);
 
+  setScoreRankingMode(state, 'lowest');
   const saved = createUserTemplateFromState(state, 'Friday setup');
   const raw = JSON.stringify(saved);
   assert.equal(saved.name, 'Friday setup');
+  assert.equal(saved.rankingMode, 'lowest', 'ranking direction is reusable score configuration');
   assert.equal(saved.trackers[0].initial, state.trackers[0].initial, 'tracker initial value is configuration');
   assert.equal('values' in saved.trackers[0], false, 'live tracker values are excluded');
   assert.equal('memberIds' in saved.teams[0], false, 'team assignments are excluded');
@@ -113,6 +115,7 @@ test('My Templates copy reusable structure without live, private, roster or camp
   assert.deepEqual(target.teams[0].memberIds, [], 'saved team structure has no old members');
   assert.equal(target.roles.length, 0);
   assert.deepEqual(target.scoreSheet.values, {});
+  assert.equal(target.scoreSheet.rankingMode, 'lowest', 'My Template restores ranking direction without live scores');
   assert.equal(target.campaign.name, 'Keep this campaign');
   assert.equal(target.campaign.notes, 'Keep this note');
   assert.equal(target.campaign.flags[0].checked, true, 'campaign memory is untouched by template apply');
@@ -286,4 +289,22 @@ test('normalization keeps tracker persistence, drops dangling references, and re
   assert.deepEqual(restored.teams, state.teams);
   assert.equal(restored.trackers[0].persistence, 'campaign');
   assert.equal(restored.ui.mode, 'play');
+});
+
+
+test('score standings support high/low totals, competition ties and invalid-total exclusion', () => {
+  const state = createDefaultTableOsState();
+  const a = addParticipant(state, 'A'); const b = addParticipant(state, 'B'); const c = addParticipant(state, 'C'); const d = addParticipant(state, 'D');
+  const points = addScoreSheetField(state, { name: 'Points', key: 'points' });
+  [[a, 10], [b, 5], [c, 5], [d, 8]].forEach(([player, value]) => setScoreSheetValue(state, player.id, points.id, value));
+  assert.deepEqual(scoreStandings(state).map(row => [row.name, row.total, row.rank, row.tied]), [['A',10,1,false],['D',8,2,false],['B',5,3,true],['C',5,3,true]]);
+  setScoreRankingMode(state, 'lowest');
+  assert.deepEqual(scoreStandings(state).map(row => [row.name, row.total, row.rank, row.tied]), [['B',5,1,true],['C',5,1,true],['D',8,3,false],['A',10,4,false]]);
+  const divisor = addScoreSheetField(state, { name: 'Divisor', key: 'divisor', includeInTotal: false });
+  addScoreSheetField(state, { name: 'Ratio', key: 'ratio', kind: 'formula', formula: '10 / divisor', includeInTotal: true });
+  [[a,2],[b,0],[c,5],[d,2]].forEach(([player, value]) => setScoreSheetValue(state, player.id, divisor.id, value));
+  const rows = scoreStandings(state);
+  assert.equal(rows.at(-1).name, 'B');
+  assert.equal(rows.at(-1).invalid, true);
+  assert.equal(rows.at(-1).rank, null);
 });

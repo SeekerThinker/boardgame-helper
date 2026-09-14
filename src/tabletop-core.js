@@ -1,4 +1,4 @@
-export const TABLE_OS_SCHEMA_VERSION = 6;
+export const TABLE_OS_SCHEMA_VERSION = 7;
 export const TABLE_OS_STORAGE_KEY = 'board-game-assistant-table-os-v1';
 export const MAX_TABLE_OS_PARTICIPANTS = 32;
 export const MAX_ENTITIES = 16;
@@ -10,7 +10,7 @@ export const MAX_TEAMS = 8;
 export const MAX_SCORE_FIELDS = 16;
 export const MAX_CAMPAIGN_FLAGS = 40;
 export const MAX_USER_TEMPLATES = 12;
-export const USER_TEMPLATE_VERSION = 5;
+export const USER_TEMPLATE_VERSION = 6;
 
 const DEFAULT_COLORS = [
   '#f97316', '#14b8a6', '#3b82f6', '#eab308', '#ef4444', '#8b5cf6',
@@ -497,7 +497,7 @@ function normalizeScoreSheet(value, validParticipantIds = new Set()) {
       });
     });
   }
-  return { fields, values };
+  return { fields, values, rankingMode: source.rankingMode === 'lowest' ? 'lowest' : 'highest' };
 }
 
 function normalizeCampaign(value) {
@@ -536,7 +536,7 @@ export function createDefaultTableOsState() {
     phases: { items: [], activeIndex: 0, cycle: 1 },
     teams: [],
     roles: [],
-    scoreSheet: { fields: [], values: {} },
+    scoreSheet: { fields: [], values: {}, rankingMode: 'highest' },
     campaign: { enabled: false, name: '', chapter: '', sessionNumber: 1, notes: '', flags: [] },
     ui: { activeSection: 'overview', mode: 'play' },
     updatedAt: new Date().toISOString()
@@ -986,6 +986,14 @@ export function roleForParticipant(state, participantId) {
   return state.roles.find(role => role.participantId === participantId) || null;
 }
 
+export function setScoreRankingMode(state, mode = 'highest') {
+  const next = mode === 'lowest' ? 'lowest' : 'highest';
+  if (state.scoreSheet.rankingMode === next) return false;
+  state.scoreSheet.rankingMode = next;
+  touch(state);
+  return true;
+}
+
 export function addScoreSheetField(state, { name = 'Field', key = '', kind = 'manual', formula = '', step = 1, effect = 1, includeInTotal = true } = {}) {
   if (state.scoreSheet.fields.length >= MAX_SCORE_FIELDS) return null;
   const used = new Set(state.scoreSheet.fields.map(field => field.key));
@@ -1205,6 +1213,32 @@ export function scoreCardForParticipant(state, participantId) {
   return { values, variables, total: Math.round(total * 100) / 100, errors };
 }
 
+export function scoreStandings(state) {
+  const mode = state.scoreSheet.rankingMode === 'lowest' ? 'lowest' : 'highest';
+  const includedFormulaIds = new Set(state.scoreSheet.fields.filter(field => field.kind === 'formula' && field.includeInTotal).map(field => field.id));
+  const rows = state.participants.map((participant, originalIndex) => {
+    const card = scoreCardForParticipant(state, participant.id);
+    const invalid = Object.keys(card.errors || {}).some(fieldId => includedFormulaIds.has(fieldId));
+    return { participantId: participant.id, name: participant.name, color: participant.color, total: card.total, invalid, rank: null, tied: false, originalIndex };
+  });
+  const valid = rows.filter(row => !row.invalid).sort((a, b) => {
+    const scoreOrder = mode === 'lowest' ? a.total - b.total : b.total - a.total;
+    return scoreOrder || a.originalIndex - b.originalIndex;
+  });
+  const counts = new Map();
+  valid.forEach(row => counts.set(row.total, (counts.get(row.total) || 0) + 1));
+  let previousTotal = null;
+  let previousRank = 0;
+  valid.forEach((row, index) => {
+    row.rank = index > 0 && row.total === previousTotal ? previousRank : index + 1;
+    row.tied = (counts.get(row.total) || 0) > 1;
+    previousTotal = row.total;
+    previousRank = row.rank;
+  });
+  const invalid = rows.filter(row => row.invalid).sort((a, b) => a.originalIndex - b.originalIndex);
+  return [...valid, ...invalid].map(({ originalIndex, ...row }) => row);
+}
+
 export function addCampaignFlag(state, name = '') {
   if (state.campaign.flags.length >= MAX_CAMPAIGN_FLAGS) return null;
   const flag = { id: uid('flag_'), name: text(name || `Checkpoint ${state.campaign.flags.length + 1}`, 50), checked: false };
@@ -1277,6 +1311,7 @@ export function normalizeUserTemplate(input) {
     entities: entitySource.slice(0, MAX_ENTITIES).map((entity, index) => ({
       name: text(entity?.name || `Entity ${index + 1}`, 32)
     })),
+    rankingMode: source.rankingMode === 'lowest' ? 'lowest' : 'highest',
     scoreFields: scoreSource.slice(0, MAX_SCORE_FIELDS).map((field, index) => {
       const normalized = scoreFieldFromTemplate(field, index, usedKeys);
       return {
@@ -1302,6 +1337,7 @@ export function createUserTemplateFromState(state, name = 'My template') {
     phases: state.phases.items,
     teams: state.teams,
     entities: state.entities,
+    rankingMode: state.scoreSheet.rankingMode,
     scoreFields: state.scoreSheet.fields,
     campaignEnabled: state.campaign.enabled
   });
@@ -1314,7 +1350,7 @@ function resetTemplateModules(state) {
   state.phases = { items: [], activeIndex: 0, cycle: 1 };
   state.teams = [];
   state.roles = [];
-  state.scoreSheet = { fields: [], values: {} };
+  state.scoreSheet = { fields: [], values: {}, rankingMode: 'highest' };
 }
 
 export function applyUserTemplate(state, input, { preserveParticipants = true } = {}) {
@@ -1339,6 +1375,7 @@ export function applyUserTemplate(state, input, { preserveParticipants = true } 
   }, index));
   const usedKeys = new Set();
   state.scoreSheet.fields = template.scoreFields.map((field, index) => scoreFieldFromTemplate(field, index, usedKeys));
+  state.scoreSheet.rankingMode = template.rankingMode;
   template.teams.forEach((savedTeam, index) => {
     const team = addTeam(state, savedTeam.name || `Team ${index + 1}`);
     if (team) team.color = color(savedTeam.color, index);
@@ -1379,6 +1416,7 @@ export function applyAssistantTemplate(state, templateId, { preserveParticipants
     ...field,
     name: translated?.scoreFields?.[index] || field.name
   }, index, usedKeys));
+  state.scoreSheet.rankingMode = template.rankingMode === 'lowest' ? 'lowest' : 'highest';
   for (let index = 0; index < Math.min(MAX_TEAMS, template.teams || 0); index += 1) {
     addTeam(state, resolvedLocale === 'en' ? `Team ${index + 1}` : `${index + 1}队`);
   }
