@@ -28,6 +28,7 @@ The following are release blockers rather than optional polish:
 - Normalization/import must drop Tracker/Status live values for entities that do not exist in the current participant/team roster; invisible stale IDs must never survive persistence or re-export.
 - Play mode must not expose template selectors, score formula configuration or roster edit fields.
 - Advanced configuration must remain reachable in one action through Edit mode.
+- Switching Play/Edit mode must preserve the current module when that module exists in both modes; only unavailable Play sections may fall back to Overview.
 - Existing basic timer/scoring flows must remain unchanged by Table OS work.
 - ScoreSheet variable keys must remain formula-safe and unique; renaming a variable must migrate exact formula references so configuration edits cannot silently change scores.
 - Score standings must respect the configured highest/lowest-total direction, use explicit shared ranks for ties, and never rank a participant whose included total depends on an invalid formula.
@@ -100,3 +101,8 @@ The production Android signing key, Apple distribution identity/profile and stor
 - Unit/correctness: an invalid formula only blocks ranking when it contributes to total; affected participants stay visible but unranked instead of receiving a plausible false position.
 - Unit/template: ranking direction normalizes safely from older states and is reusable My Template structure without copying live scores.
 - Chromium: Edit setup switches ranking direction, Play mode renders tied low-score leaders explicitly, and invalid included formulas remove misleading ranks until corrected.
+
+### Play/Edit section continuity
+
+- Chromium: switching from a live Phase surface into Edit setup keeps Phase selected and exposes its editor immediately; switching back to Play keeps the same Phase surface without an extra navigation tap.
+- Fallback: sections that are intentionally hidden in Play mode may still return to Overview, so continuity never exposes empty/config-only modules.
