@@ -20,9 +20,9 @@ function deterministicCrypto(values) {
   };
 }
 
-test('default state uses schema v2 and subtracting preset fields', () => {
+test('default state uses schema v3 and subtracting preset fields', () => {
   const state = createDefaultState();
-  assert.equal(state.schemaVersion, 2);
+  assert.equal(state.schemaVersion, 3);
   assert.equal(state.score.fields.find(field => field.id === 'penalty').effect, -1);
   assert.equal(state.players.length, 4);
 });
