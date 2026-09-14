@@ -12,21 +12,3 @@ new = "  assert.equal(await page.locator('[data-os-score-rank=\"' + firstScoredP
 if old not in text:
     raise SystemExit('missing invalid-rank assertion anchor')
 path.write_text(text.replace(old, new, 1))
-
-checks = {
-    'tests/unit/tabletop-phase-checklist.test.js': [
-        ('assert.equal(state.schemaVersion, 6);', 'assert.equal(state.schemaVersion, 7);')
-    ],
-    'tests/unit/tabletop-phase-timer.test.js': [
-        ('assert.equal(state.schemaVersion, 6);', 'assert.equal(state.schemaVersion, 7);'),
-        ('assert.equal(saved.version, 5);', 'assert.equal(saved.version, 6);')
-    ]
-}
-for filename, replacements in checks.items():
-    unit_path = Path(filename)
-    unit_text = unit_path.read_text()
-    for before, after in replacements:
-        if before not in unit_text:
-            raise SystemExit('missing version assertion in ' + filename)
-        unit_text = unit_text.replace(before, after, 1)
-    unit_path.write_text(unit_text)
