@@ -26,7 +26,7 @@ The following are release blockers rather than optional polish:
 - Any template application that resets Table Entities must explicitly disclose that destructive effect before confirmation.
 - My Templates must remain local-only structural snapshots: no participants, team membership, roles/factions/moderator notes, live tracker/score values or campaign content may be copied into them.
 - Normalization/import must drop Tracker/Status live values for entities that do not exist in the current participant/team roster; invisible stale IDs must never survive persistence or re-export.
-- Play mode must not expose template selectors, score formula configuration or roster edit fields.
+- Play mode must not expose template selectors, score formula configuration, roster edit fields, or whole-team replacement actions.
 - Advanced configuration must remain reachable in one action through Edit mode.
 - Switching Play/Edit mode must preserve the current module when that module exists in both modes; only unavailable Play sections may fall back to Overview.
 - Existing basic timer/scoring flows must remain unchanged by Table OS work.
@@ -47,6 +47,7 @@ The production Android signing key, Apple distribution identity/profile and stor
 
 - Unit: replacing the whole team roster creates fresh team identities, keeps only valid participant membership, and clears retired team-scoped Tracker/Status overrides before persistence/export.
 - Chromium: adopting toolbox teams removes retired team IDs and hidden live values; replacement teams render the Tracker/Status defaults instead.
+- Play/Edit safety: whole-team adoption is configuration-only in Edit mode; Play keeps the live team/role surface read-focused, and section continuity makes the replacement workflow one mode switch away.
 
 ### Normalization stale-entity cleanup
 

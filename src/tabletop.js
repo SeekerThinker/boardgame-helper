@@ -561,7 +561,7 @@ function renderTeamsRoles() {
 
 function renderTeamsRolesPlay() {
   return `<div class="tableos-grid two align-start">
-    <section class="tableos-card"><div class="tableos-card-head"><div><span>${esc(tr('teams'))}</span><h3>${state.teams.length}</h3></div><button class="tableos-btn" type="button" data-os-action="adopt-teams">${esc(tr('adoptTeams'))}</button></div>${state.teams.map(team => `<article class="tableos-team tableos-team-live"><strong>${esc(team.name)}</strong><div>${team.memberIds.map(id => `<span>${esc(participantById(id)?.name || id)}</span>`).join('') || '—'}</div></article>`).join('') || `<p class="tableos-empty">${esc(tr('noTeams'))}</p>`}</section>
+    <section class="tableos-card"><div class="tableos-card-head"><div><span>${esc(tr('teams'))}</span><h3>${state.teams.length}</h3></div></div>${state.teams.map(team => `<article class="tableos-team tableos-team-live"><strong>${esc(team.name)}</strong><div>${team.memberIds.map(id => `<span>${esc(participantById(id)?.name || id)}</span>`).join('') || '—'}</div></article>`).join('') || `<p class="tableos-empty">${esc(tr('noTeams'))}</p>`}</section>
     <section class="tableos-card"><div class="tableos-card-head"><div><span>${esc(tr('role'))}</span><h3>${state.roles.length} / ${state.participants.length}</h3></div></div><div class="tableos-stack">${state.participants.map(participant => `<article class="tableos-role tableos-role-live"><strong>${esc(participant.name)}</strong><button class="tableos-btn" type="button" data-os-role-reveal="${participant.id}">${esc(tr('reveal'))}</button></article>`).join('') || `<p class="tableos-empty">${esc(tr('emptyParticipants'))}</p>`}</div></section>
   </div>`;
 }
