@@ -39,3 +39,5 @@ jobs:
           git add -A
           git commit -m "feat: add score standings and tie ranking"
           git push origin HEAD:feat/score-standings-ranking
+
+# rerun after schema-contract test update
