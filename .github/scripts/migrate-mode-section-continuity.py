@@ -29,6 +29,12 @@ replace_once(
     "  await activeChecklistEditor.blur();\n  await page.getByRole('button', { name: '牌局模式' }).click();\n  assert.equal(await page.getByRole('button', { name: '阶段', exact: true }).getAttribute('aria-current'), 'page', 'switching back to Play preserves the configured section');\n  const phaseChecklistItems = page.locator('[data-os-phase-check]');"
 )
 
+replace_once(
+    'tests/e2e/run-table-os-entities-e2e.js',
+    "  await page.getByRole('button', { name: '编辑配置' }).click();\n  await page.locator(`[data-os-remove-entity=\"${bossId}\"]`).click();",
+    "  await page.getByRole('button', { name: '编辑配置' }).click();\n  await page.getByRole('button', { name: '总览', exact: true }).click();\n  await page.locator(`[data-os-remove-entity=\"${bossId}\"]`).click();"
+)
+
 doc = Path('docs/TABLE_OS_TEST_MATRIX.md')
 text = doc.read_text()
 anchor = "- Advanced configuration must remain reachable in one action through Edit mode.\n"
