@@ -28,7 +28,7 @@ test('normalization upgrades older phases and sanitizes timer duration', () => {
       { id: 'huge', name: 'Huge phase', timerSeconds: 999999 }
     ] }
   });
-  assert.equal(state.schemaVersion, 6);
+  assert.equal(state.schemaVersion, 7);
   assert.deepEqual(state.phases.items.map(phase => phase.timerSeconds), [0, 95, 86400]);
 });
 
@@ -37,7 +37,7 @@ test('My Templates save phase timer structure but no live main-timer state', () 
   const phase = addPhase(source, 'Resolve');
   setPhaseTimerSeconds(source, phase.id, 45);
   const saved = createUserTemplateFromState(source, 'Timed phases');
-  assert.equal(saved.version, 5);
+  assert.equal(saved.version, 6);
   assert.equal(saved.phases[0].timerSeconds, 45);
   assert.equal(JSON.stringify(saved).includes('deadlineMs'), false);
   assert.equal(JSON.stringify(saved).includes('remainingSeconds'), false);
