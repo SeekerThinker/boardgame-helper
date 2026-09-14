@@ -1,0 +1,42 @@
+name: Migrate draw bag
+
+on:
+  push:
+    branches:
+      - feat/draw-bag-without-replacement
+    paths:
+      - .github/workflows/migrate-draw-bag.yml
+      - .github/scripts/migrate-draw-bag.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feat/draw-bag-without-replacement
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply migration
+        run: python .github/scripts/migrate-draw-bag.py
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run full check
+        run: npm run check
+      - name: Commit product tree and remove temporary files
+        run: |
+          rm .github/scripts/migrate-draw-bag.py .github/workflows/migrate-draw-bag.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: add draw bag without replacement"
+          git push origin HEAD:feat/draw-bag-without-replacement
