@@ -281,6 +281,17 @@ async function runPrimaryFlow() {
   await manualInputs.nth(3).fill('3'); await manualInputs.nth(3).blur();
   const firstScoreCard = page.locator('.tableos-score-table > article').first();
   assert.equal(await firstScoreCard.locator('output').last().textContent(), '13');
+  const highStandings = page.locator('[data-os-score-rank]');
+  const firstScoredParticipantId = (await manualInputs.nth(0).getAttribute('data-os-score-value')).split('|')[0];
+  assert.equal(await highStandings.first().getAttribute('data-rank'), '1', 'highest-total mode ranks the leading score first');
+  await editMode(page);
+  await page.getByRole('button', { name: '计分表', exact: true }).click();
+  await page.locator('[data-os-score-ranking]').selectOption('lowest');
+  await page.getByRole('button', { name: '牌局模式' }).click();
+  await page.getByRole('button', { name: '计分表', exact: true }).click();
+  const lowStandings = page.locator('[data-os-score-rank]');
+  assert.deepEqual(await lowStandings.evaluateAll(rows => rows.map(row => row.getAttribute('data-rank'))), ['1', '1', '1', '4'], 'lowest-total mode uses shared competition ranks for ties');
+  assert.equal(await lowStandings.first().getByText('并列', { exact: true }).count(), 1, 'tied leaders are explicitly labeled');
 
 
   // Unary +/- follows ordinary arithmetic precedence in real formula-field editing.
@@ -311,6 +322,7 @@ async function runPrimaryFlow() {
   await editMode(page);
   await page.getByRole('button', { name: '计分表', exact: true }).click();
   const renamedFormula = page.locator('[data-os-score-formula]').first();
+  await page.locator('[data-os-score-total]').last().check();
   await renamedFormula.fill('points + missing_bonus');
   await renamedFormula.blur();
   await page.getByRole('button', { name: '牌局模式' }).click();
@@ -318,6 +330,7 @@ async function runPrimaryFlow() {
   const formulaWarning = page.locator('[data-os-score-error]').first();
   assert.equal(await formulaWarning.textContent(), '⚠', 'unknown score variable is visibly rejected');
   assert.match(await formulaWarning.getAttribute('title'), /公式无效/, 'formula warning explains the invalid configuration');
+  assert.equal(await page.locator('[data-os-score-rank="' + firstScoredParticipantId + '"]').getAttribute('data-rank'), '', 'invalid included formulas do not produce a misleading rank');
   await editMode(page);
   await page.getByRole('button', { name: '计分表', exact: true }).click();
   await page.locator('[data-os-score-formula]').first().fill('-(points + points_2) / -2 + objective - penalty');
@@ -486,7 +499,7 @@ async function run() {
     event: 'table-os-e2e-summary', status: 'PASS',
     checks: [
       'play/edit separation', 'purpose-first quick start', 'roster sync', 'universal trackers', 'phase engine', 'phase checklist lifecycle', 'phase timer bridge',
-      'toolbox-team bridge', 'two-stage private role reveal', 'moderator-note isolation', 'formula score sheet', 'unary formula operators', 'formula typo validation', 'modal focus trap', 'nested reveal focus return', 'launcher focus return',
+      'toolbox-team bridge', 'two-stage private role reveal', 'moderator-note isolation', 'formula score sheet', 'score standings and ties', 'unary formula operators', 'formula typo validation', 'modal focus trap', 'nested reveal focus return', 'launcher focus return',
       'pagehide draft flush', 'escape-close draft flush', 'campaign tracker persistence', 'campaign reload persistence', 'template entity destructive disclosure', '320px mobile', 'tablet', 'dynamic bilingual UI'
     ]
   }, null, 2));

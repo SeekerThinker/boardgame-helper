@@ -30,6 +30,7 @@ The following are release blockers rather than optional polish:
 - Advanced configuration must remain reachable in one action through Edit mode.
 - Existing basic timer/scoring flows must remain unchanged by Table OS work.
 - ScoreSheet variable keys must remain formula-safe and unique; renaming a variable must migrate exact formula references so configuration edits cannot silently change scores.
+- Score standings must respect the configured highest/lowest-total direction, use explicit shared ranks for ties, and never rank a participant whose included total depends on an invalid formula.
 - ScoreSheet formulas must reject unknown variables and circular formula dependencies; invalid formulas must be visibly flagged instead of silently producing plausible totals.
 - Removing a phase before the current live phase must preserve that active phase by identity; removing the active phase selects the nearest surviving phase without changing the cycle.
 
@@ -91,3 +92,11 @@ The production Android signing key, Apple distribution identity/profile and stor
 
 | Phase timer bridge | Configure an active phase duration, verify Play mode exposes an explicit load action, start the main timer, cancel replacement and verify it remains untouched, then accept replacement and verify `round` mode is prepared at the phase duration without auto-starting or erasing pool/chess values | Chromium E2E + unit |
 | Phase timer template/privacy boundary | Normalize old phase data to `timerSeconds: 0`; bound duration to 0–86400; save/apply My Template duration only; verify no main-timer runtime fields enter My Templates and new-scenario reset preserves phase timer structure | Unit |
+
+
+### Score standings semantics
+
+- Unit: highest-total and lowest-total modes sort deterministically; equal totals use competition ranking (`1, 1, 3`) and expose tie state.
+- Unit/correctness: an invalid formula only blocks ranking when it contributes to total; affected participants stay visible but unranked instead of receiving a plausible false position.
+- Unit/template: ranking direction normalizes safely from older states and is reusable My Template structure without copying live scores.
+- Chromium: Edit setup switches ranking direction, Play mode renders tied low-score leaders explicitly, and invalid included formulas remove misleading ranks until corrected.

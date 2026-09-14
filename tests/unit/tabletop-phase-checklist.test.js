@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  MAX_PHASE_CHECKLIST_ITEMS, createDefaultTableOsState, normalizeTableOsState,
+  TABLE_OS_SCHEMA_VERSION, MAX_PHASE_CHECKLIST_ITEMS, createDefaultTableOsState, normalizeTableOsState,
   addPhase, setActivePhase, advancePhase, setPhaseChecklistFromText, togglePhaseChecklistItem,
   resetTableOsSession, createUserTemplateFromState, applyUserTemplate
 } from '../../src/tabletop-core.js';
@@ -58,7 +58,7 @@ test('normalization accepts older phases and sanitizes checklist data', () => {
   });
   assert.deepEqual(state.phases.items[0].checklist, [], 'old phase data receives an empty checklist');
   assert.deepEqual(state.phases.items[1].checklist.map(item => [item.label, item.done]), [['Pay cost', false], ['Gain reward', true]]);
-  assert.equal(state.schemaVersion, 6);
+  assert.equal(state.schemaVersion, TABLE_OS_SCHEMA_VERSION);
 });
 
 test('My Templates keep phase checklist structure but never live completion progress', () => {
