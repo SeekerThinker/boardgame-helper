@@ -18,6 +18,12 @@ replace_once(
 
 replace_once(
     'src/tabletop.js',
+    "[data-os-remove-score],[data-os-flag-toggle]",
+    "[data-os-remove-score],[data-os-score-delta],[data-os-flag-toggle]"
+)
+
+replace_once(
+    'src/tabletop.js',
     "    if (d.osRemoveScore) { removeScoreSheetField(state, d.osRemoveScore); persist(); render(); return; }\n    if (d.osAction === 'add-flag') { if (!addCampaignFlag(state, tr('customFlag'))) flash(tr('limit')); else { persist(); render(); } return; }",
     "    if (d.osRemoveScore) { removeScoreSheetField(state, d.osRemoveScore); persist(); render(); return; }\n    if (d.osScoreDelta) { const [participantId, fieldId, delta] = d.osScoreDelta.split('|'); const current = Number(state.scoreSheet.values?.[participantId]?.[fieldId] ?? 0); setScoreSheetValue(state, participantId, fieldId, current + Number(delta)); persist(); render(); return; }\n    if (d.osAction === 'add-flag') { if (!addCampaignFlag(state, tr('customFlag'))) flash(tr('limit')); else { persist(); render(); } return; }"
 )
