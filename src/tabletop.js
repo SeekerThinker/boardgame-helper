@@ -18,6 +18,7 @@ const LEGACY_GAME_STATE_KEY = 'board-game-assistant-state-v1';
 const USER_TEMPLATES_STORAGE_KEY = 'board-game-assistant-table-os-user-templates-v1';
 const SECTION_IDS = ['overview', 'statuses', 'trackers', 'phases', 'teams', 'score', 'campaign'];
 const QUICK_TEMPLATES = ['universal', 'coop-crisis', 'hidden-role', 'card-battle', 'campaign', 'party-teams'];
+const DESTRUCTIVE_EDIT_SELECTOR = '[data-os-remove-participant],[data-os-remove-entity],[data-os-remove-status],[data-os-remove-tracker],[data-os-remove-phase],[data-os-remove-team],[data-os-role-clear],[data-os-remove-score],[data-os-flag-remove]';
 
 const I18N = {
   zh: {
@@ -48,7 +49,8 @@ const I18N = {
     myTemplates: '我的模板', saveMyTemplate: '保存当前配置', applyMyTemplate: '应用我的模板', renameMyTemplate: '重命名', deleteMyTemplate: '删除模板',
     myTemplateHint: '只保存在本机，只保存实体定义、状态定义、追踪器、阶段、团队结构和计分公式；不保存玩家、身份、当前状态/数值或战役内容。', myTemplateEmpty: '还没有我的模板', myTemplateDefault: '我的模板', customSetup: '自定义配置',
     myTemplateNamePrompt: '模板名称', myTemplateSaved: '已保存为我的模板。', myTemplateRenamed: '模板已重命名。', myTemplateDeleted: '模板已删除。', myTemplateLimit: '我的模板最多保存 12 个。',
-    confirmMyTemplate: '应用我的模板会重置桌面实体、状态、追踪器、阶段、团队、身份和高级计分表，但保留参与者与战役记忆。继续吗？', confirmDeleteMyTemplate: '删除这个本机模板吗？'
+    confirmMyTemplate: '应用我的模板会重置桌面实体、状态、追踪器、阶段、团队、身份和高级计分表，但保留参与者与战役记忆。继续吗？', confirmDeleteMyTemplate: '删除这个本机模板吗？',
+    confirmDeleteItem: '删除后会同时清除该项目及其关联的配置或当前牌局数据，且无法撤销。继续吗？'
   },
   en: {
     launcher: 'Table OS', title: 'Advanced Table Assistant', subtitle: 'Play mode keeps only live table controls visible; configuration stays in Edit mode.',
@@ -78,7 +80,8 @@ const I18N = {
     myTemplates: 'My templates', saveMyTemplate: 'Save current setup', applyMyTemplate: 'Apply my template', renameMyTemplate: 'Rename', deleteMyTemplate: 'Delete template',
     myTemplateHint: 'Stored only on this device. Saves entity and status definitions, tracker, phase, team structure and score formulas — never players, roles, live status/value state or campaign content.', myTemplateEmpty: 'No saved templates yet', myTemplateDefault: 'My template', customSetup: 'Custom setup',
     myTemplateNamePrompt: 'Template name', myTemplateSaved: 'Saved to My templates.', myTemplateRenamed: 'Template renamed.', myTemplateDeleted: 'Template deleted.', myTemplateLimit: 'My templates can store up to 12 setups.',
-    confirmMyTemplate: 'Applying My template resets table entities, statuses, trackers, phases, teams, roles and the advanced score sheet while preserving participants and campaign memory. Continue?', confirmDeleteMyTemplate: 'Delete this local template?'
+    confirmMyTemplate: 'Applying My template resets table entities, statuses, trackers, phases, teams, roles and the advanced score sheet while preserving participants and campaign memory. Continue?', confirmDeleteMyTemplate: 'Delete this local template?',
+    confirmDeleteItem: 'Removing this item also clears its related setup or live table data and cannot be undone. Continue?'
   }
 };
 
@@ -714,6 +717,7 @@ function bindEvents() {
     const target = event.target instanceof Element ? event.target.closest('[data-os-action],[data-os-mode],[data-os-section],[data-os-quick-template],[data-os-remove-participant],[data-os-remove-entity],[data-os-status-toggle],[data-os-remove-status],[data-os-tracker-delta],[data-os-remove-tracker],[data-os-phase-active],[data-os-phase-check],[data-os-phase-timer],[data-os-remove-phase],[data-os-remove-team],[data-os-role-reveal],[data-os-role-clear],[data-os-remove-score],[data-os-score-delta],[data-os-flag-toggle],[data-os-flag-remove]') : null;
     if (!target) return;
     const d = target.dataset;
+    if (target.matches(DESTRUCTIVE_EDIT_SELECTOR) && !confirm(tr('confirmDeleteItem'))) return;
     if (d.osAction === 'close') { if (event.target.closest('.tableos-sheet') && !event.target.closest('[data-os-action="close"]')) return; closeTableOs(); return; }
     if (d.osAction === 'hide-role') { closeRoleReveal(); return; }
     if (d.osAction === 'reveal-role-now') { revealArmed = true; render(); focusRoleReveal(); return; }

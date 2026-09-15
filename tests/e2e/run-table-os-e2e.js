@@ -111,8 +111,14 @@ async function runPrimaryFlow() {
   assert.deepEqual(bulkSnapshot.participants.slice(-5).map(item => item.name), ['阿青', '小林', 'Mia', 'Noah', 'Eva']);
   assert.equal(bulkSnapshot.participants.slice(-5).every(item => item.sourcePlayerId === null), true, 'bulk roster creates assistant-only participants');
   assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-state-v2')).players.length), 4, 'bulk roster never mutates the main game roster');
+  const deleteConfirmCount = confirmMessages.length;
+  dismissNextConfirm = true;
+  await page.locator('[data-os-remove-participant]').last().click();
+  assert.equal(await page.locator('[data-os-participant-name]').count(), 9, 'canceling an Edit-mode destructive delete leaves the participant roster untouched');
+  assert.equal(confirmMessages.length, deleteConfirmCount + 1, 'Edit-mode destructive deletes ask for explicit confirmation');
+  assert.match(confirmMessages.at(-1), /无法撤销/, 'destructive delete confirmation discloses irreversible related-data removal');
   for (let index = 0; index < 5; index += 1) await page.locator('[data-os-remove-participant]').last().click();
-  assert.equal(await page.locator('[data-os-participant-name]').count(), 4, 'test cleanup returns to the synchronized four-player roster');
+  assert.equal(await page.locator('[data-os-participant-name]').count(), 4, 'accepted destructive deletes still use the existing participant cleanup path');
 
   // Destructive template reset must explicitly disclose that table entities are removed.
   await page.getByRole('button', { name: '添加实体' }).click();
@@ -526,7 +532,7 @@ async function run() {
   console.log(JSON.stringify({
     event: 'table-os-e2e-summary', status: 'PASS',
     checks: [
-      'play/edit separation', 'purpose-first quick start', 'roster sync', 'universal trackers', 'phase engine', 'phase checklist lifecycle', 'phase timer bridge',
+      'play/edit separation', 'purpose-first quick start', 'roster sync', 'edit destructive delete safety', 'universal trackers', 'phase engine', 'phase checklist lifecycle', 'phase timer bridge',
       'toolbox-team bridge', 'two-stage private role reveal', 'moderator-note isolation', 'formula score sheet', 'score standings and ties', 'unary formula operators', 'formula typo validation', 'modal focus trap', 'nested reveal focus return', 'launcher focus return',
       'pagehide draft flush', 'escape-close draft flush', 'campaign tracker persistence', 'campaign reload persistence', 'template entity destructive disclosure', '320px mobile', 'tablet', 'dynamic bilingual UI'
     ]

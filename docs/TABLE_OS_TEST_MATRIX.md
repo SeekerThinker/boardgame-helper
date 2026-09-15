@@ -56,6 +56,12 @@ The production Android signing key, Apple distribution identity/profile and stor
 - Unit: parse + serialize cannot retain retired participant/team IDs or values from an old scope.
 - Chromium: reload normalization removes hidden retired team/player values from local persistence while keeping valid live values.
 
+### Edit-mode destructive delete safety
+
+- Interaction boundary: participant, entity, status, tracker, phase, team, role, score-field and campaign-checkpoint removal controls share one Edit-mode confirmation gate; Play mode does not gain any new destructive controls or prompts.
+- Chromium: canceling a destructive participant deletion leaves the roster and persisted workspace untouched; accepting an entity deletion with live entity-scoped Tracker/Status values confirms first and then preserves the existing cleanup semantics.
+- Data-loss disclosure: the bilingual confirmation explicitly states that related setup/live table data is removed and the action cannot be undone; existing core cleanup semantics remain unchanged.
+
 ### Large-table roster setup
 
 - Unit: mixed newline/comma/semicolon/tab paste parsing, blank-token trimming, assistant-only identity, and safe truncation at 32 participants.

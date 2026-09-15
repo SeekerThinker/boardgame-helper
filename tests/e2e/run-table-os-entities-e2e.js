@@ -26,8 +26,10 @@ async function run() {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'zh-CN' });
   const page = await context.newPage();
   const errors = [];
+  const deleteConfirms = [];
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   page.on('pageerror', error => errors.push(error.message));
+  page.on('dialog', async dialog => { deleteConfirms.push(dialog.message()); await dialog.accept(); });
 
   await page.goto(url, { waitUntil: 'networkidle' });
   await page.evaluate(() => localStorage.clear());
@@ -70,6 +72,7 @@ async function run() {
   await page.getByRole('button', { name: '编辑配置' }).click();
   await page.getByRole('button', { name: '总览', exact: true }).click();
   await page.locator(`[data-os-remove-entity="${bossId}"]`).click();
+  assert.match(deleteConfirms.at(-1), /无法撤销/, 'entity removal uses the shared destructive-delete confirmation gate');
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1')));
   assert.deepEqual(stored.entities.map(item => item.name), ['祭坛']);
   assert.equal(Object.hasOwn(stored.trackers.find(item => item.id === trackerId).values, bossId), false);
