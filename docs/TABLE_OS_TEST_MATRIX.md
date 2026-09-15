@@ -127,3 +127,9 @@ The production Android signing key, Apple distribution identity/profile and stor
 - Lifecycle detection: changed Status values and checked Phase checklist items count as session-local Table OS state, so a new main-game session requires the existing explicit Start New Table / Keep Table State choice instead of silently carrying them forward.
 - Noise control: a Status override equal to its configured default and an unchecked checklist structure do not count as live progress, so clean rematches remain silent.
 - Chromium: isolated Status-only and checklist-only rematches prove meaningful transient state triggers the lifecycle choice and accepted reset clears the live values/progress through the existing `resetTableOsSession()` path.
+
+### Full backup export privacy
+
+- Edit setup labels the action as a full backup rather than a generic export, because the JSON is intentionally restorable rather than share-sanitized.
+- Privacy disclosure: every full-backup export confirms that configured private roles/factions, moderator notes, live scores/status/tracker values, and campaign records may be included and should be kept in a trusted location / inspected before sharing.
+- Chromium: canceling the confirmation creates no download and leaves persisted Table OS state byte-identical; accepting creates exactly one dated JSON backup and proves private role/faction/moderator-note content remains present for restore semantics.

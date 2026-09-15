@@ -23,7 +23,7 @@ const DESTRUCTIVE_EDIT_SELECTOR = '[data-os-remove-participant],[data-os-remove-
 const I18N = {
   zh: {
     launcher: '桌面 OS', title: '高级桌游助手', subtitle: '牌局时只保留真正要操作的内容；需要配置时再进入编辑模式。',
-    close: '关闭', sync: '同步当前玩家', template: '适配模板', apply: '应用模板', reset: '新场景 / 下一局', export: '导出', import: '导入',
+    close: '关闭', sync: '同步当前玩家', template: '适配模板', apply: '应用模板', reset: '新场景 / 下一局', export: '导出完整备份', import: '导入',
     playMode: '牌局模式', editMode: '编辑配置', editHint: '模板、结构和高级设置只在编辑模式出现。',
     overview: '总览', statuses: '状态', trackers: '追踪器', phases: '阶段', teams: '团队与身份', score: '计分表', campaign: '战役',
     participants: '参与者', addParticipant: '添加参与者', bulkParticipants: '批量添加名单', bulkParticipantsHelp: '每行一位，也支持逗号、分号或制表符；只追加到 Table OS，不改动主应用玩家。', bulkParticipantsPlaceholder: '阿青\n小林\nMia', bulkAddParticipants: '添加名单', bulkAdded: '已批量添加参与者：', bulkNoNames: '没有可添加的名字。', sourceGame: '当前对局', localOnly: '扩展参与者', remove: '删除',
@@ -41,7 +41,7 @@ const I18N = {
     scoreRanking: '排名方式', highestTotal: '高分优先', lowestTotal: '低分优先', standings: '当前排名', tied: '并列', unranked: '待修正', rankingFormulaError: '存在影响总分的无效公式，修正后再参与排名。',
     noScoreFields: '当前没有计分栏。', formulaHelp: '公式支持变量、数字、+ − × ÷ 和括号，例如 base + bonus - penalty。', formulaError: '公式无效，请检查变量名或循环引用。',
     campaignEnabled: '启用战役记录', campaignName: '战役名称', chapter: '章节 / 场景', sessionNumber: '第几局', notes: '跨局备注', flags: '检查点 / 解锁项', addFlag: '添加检查点', noFlags: '还没有检查点。',
-    imported: '已导入高级助手数据。', importFailed: '导入失败：文件不是有效的桌面 OS 数据。', exported: '已导出。', synced: '已同步当前对局玩家。',
+    imported: '已导入高级助手数据。', importFailed: '导入失败：文件不是有效的桌面 OS 数据。', exported: '已导出完整备份。', confirmExportBackup: '完整备份会包含当前 Table OS 的全部本机数据；如果已设置，也会包含私密身份/阵营、主持备注、当前计分与状态/追踪值，以及战役记录。请只保存到可信位置；分享前请先检查文件内容。继续导出吗？', synced: '已同步当前对局玩家。',
     confirmTemplate: '应用模板会重置桌面实体、状态、追踪器、阶段、团队、身份和高级计分表，但保留参与者。继续吗？', confirmReset: '开始新场景会把状态恢复到默认值，重置“本局”追踪器、身份和高级计分值，保留“战役”追踪器，并推进战役局数。继续吗？',
     limit: '已达到上限。', customParticipant: '新参与者', customTracker: '新追踪器', customPhase: '新阶段', customTeam: '新团队', customField: '新栏位', customFormula: '计算栏', customFlag: '新检查点',
     revealFor: '仅给这位玩家看', passDevice: '请先把设备交给对应玩家。身份现在仍然隐藏。', revealNow: '这是我，查看身份', noRole: '尚未设置身份',
@@ -54,7 +54,7 @@ const I18N = {
   },
   en: {
     launcher: 'Table OS', title: 'Advanced Table Assistant', subtitle: 'Play mode keeps only live table controls visible; configuration stays in Edit mode.',
-    close: 'Close', sync: 'Sync game players', template: 'Assistant template', apply: 'Apply', reset: 'New scenario / rematch', export: 'Export', import: 'Import',
+    close: 'Close', sync: 'Sync game players', template: 'Assistant template', apply: 'Apply', reset: 'New scenario / rematch', export: 'Export full backup', import: 'Import',
     playMode: 'Play', editMode: 'Edit setup', editHint: 'Templates, structure and advanced settings only appear in Edit mode.',
     overview: 'Overview', statuses: 'Statuses', trackers: 'Trackers', phases: 'Phases', teams: 'Teams & roles', score: 'Score sheet', campaign: 'Campaign',
     participants: 'Participants', addParticipant: 'Add participant', bulkParticipants: 'Paste roster', bulkParticipantsHelp: 'One name per line; commas, semicolons and tabs also work. This only appends Table OS participants and never changes the main game roster.', bulkParticipantsPlaceholder: 'Ada\nLin\nMia', bulkAddParticipants: 'Add roster', bulkAdded: 'Participants added:', bulkNoNames: 'No names to add.', sourceGame: 'Game roster', localOnly: 'Assistant-only', remove: 'Remove',
@@ -72,7 +72,7 @@ const I18N = {
     scoreRanking: 'Ranking mode', highestTotal: 'Highest total first', lowestTotal: 'Lowest total first', standings: 'Standings', tied: 'Tie', unranked: 'Fix score', rankingFormulaError: 'An invalid formula affects the total. Fix it before this player is ranked.',
     noScoreFields: 'No score fields yet.', formulaHelp: 'Formulas support variables, numbers, + − × ÷ and parentheses, e.g. base + bonus - penalty.', formulaError: 'Invalid formula. Check variable names or circular references.',
     campaignEnabled: 'Enable campaign record', campaignName: 'Campaign name', chapter: 'Chapter / scenario', sessionNumber: 'Session', notes: 'Persistent notes', flags: 'Checkpoints / unlocks', addFlag: 'Add checkpoint', noFlags: 'No checkpoints yet.',
-    imported: 'Advanced assistant data imported.', importFailed: 'Import failed: this is not valid Table OS data.', exported: 'Exported.', synced: 'Game roster synced.',
+    imported: 'Advanced assistant data imported.', importFailed: 'Import failed: this is not valid Table OS data.', exported: 'Full backup exported.', confirmExportBackup: 'A full backup contains all local Table OS data. If configured, that includes private roles/factions, moderator notes, current scores and status/tracker values, and campaign records. Keep it in a trusted location and inspect the file before sharing it. Continue exporting?', synced: 'Game roster synced.',
     confirmTemplate: 'Applying a template resets table entities, statuses, trackers, phases, teams, roles and the advanced score sheet while preserving participants. Continue?', confirmReset: 'Starting a new scenario restores status defaults, resets session trackers, roles and advanced scores, preserves campaign trackers, and advances the campaign session. Continue?',
     limit: 'Limit reached.', customParticipant: 'New participant', customTracker: 'New tracker', customPhase: 'New phase', customTeam: 'New team', customField: 'New field', customFormula: 'Calculated field', customFlag: 'New checkpoint',
     revealFor: 'For this player only', passDevice: 'Pass the device to the matching player first. The role is still hidden.', revealNow: 'This is me — reveal role', noRole: 'No role assigned',
@@ -736,7 +736,7 @@ function bindEvents() {
     if (d.osAction === 'delete-my-template') { deleteSelectedUserTemplate(); return; }
     if (d.osAction === 'apply-template') { applyTemplate(selectedTemplateId, true); return; }
     if (d.osAction === 'reset') { if (confirm(tr('confirmReset'))) { resetTableOsSession(state); persist(); render(); } return; }
-    if (d.osAction === 'export') { exportState(); return; }
+    if (d.osAction === 'export') { if (confirm(tr('confirmExportBackup'))) exportState(); return; }
     if (d.osAction === 'import') { document.getElementById('tableos-import-file')?.click(); return; }
     if (d.osAction === 'open-timer') { isOpen = false; render(); document.querySelector('[data-tab="flow"]')?.click(); return; }
     if (d.osAction === 'adopt-teams') { adoptRandomTeams(); return; }

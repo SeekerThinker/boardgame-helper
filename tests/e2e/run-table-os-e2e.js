@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
 
 const port = Number(process.env.TABLE_OS_TEST_PORT || 4174);
@@ -69,7 +70,9 @@ async function runPrimaryFlow() {
   const promptResponses = [];
   const confirmMessages = [];
   let dismissNextConfirm = false;
+  let downloadCount = 0;
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+  page.on('download', () => { downloadCount += 1; });
   page.on('pageerror', error => errors.push(error.message));
   page.on('dialog', async dialog => {
     if (dialog.type() === 'prompt') await dialog.accept(promptResponses.shift() || dialog.defaultValue() || '');
@@ -228,6 +231,36 @@ async function runPrimaryFlow() {
   await firstRoleName.fill('侦察员'); await firstRoleName.blur();
   await firstFaction.fill('守护者'); await firstFaction.blur();
   await firstModeratorNote.fill('主持人机密：夜晚第二个行动'); await firstModeratorNote.blur();
+
+  // Full backup export is explicitly privacy-sensitive: cancel produces no file, accept preserves restorable private data.
+  await page.getByRole('button', { name: '总览', exact: true }).click();
+  const exportButton = page.getByRole('button', { name: '导出完整备份', exact: true });
+  const exportConfirmCount = confirmMessages.length;
+  const beforeCanceledExport = await page.evaluate(() => localStorage.getItem('board-game-assistant-table-os-v1'));
+  dismissNextConfirm = true;
+  await exportButton.click();
+  await page.waitForTimeout(100);
+  assert.equal(confirmMessages.length, exportConfirmCount + 1, 'full backup export asks for explicit privacy confirmation');
+  assert.match(confirmMessages.at(-1), /私密身份\/阵营/);
+  assert.match(confirmMessages.at(-1), /主持备注/);
+  assert.match(confirmMessages.at(-1), /状态\/追踪值/);
+  assert.match(confirmMessages.at(-1), /战役记录/);
+  assert.equal(downloadCount, 0, 'canceling full backup export creates no download');
+  assert.equal(await page.evaluate(() => localStorage.getItem('board-game-assistant-table-os-v1')), beforeCanceledExport, 'canceling export leaves Table OS persistence byte-identical');
+
+  const downloadPromise = page.waitForEvent('download');
+  await exportButton.click();
+  const backupDownload = await downloadPromise;
+  assert.equal(downloadCount, 1, 'accepted full backup export creates exactly one download');
+  assert.match(backupDownload.suggestedFilename(), /^boardgame-table-os-\d{4}-\d{2}-\d{2}\.json$/);
+  const backupPath = await backupDownload.path();
+  assert.ok(backupPath, 'accepted full backup has a readable local download path');
+  const backup = JSON.parse(await readFile(backupPath, 'utf8'));
+  const exportedRole = backup.roles.find(role => role.participantId === backup.participants[0]?.id);
+  assert.equal(exportedRole?.role, '侦察员', 'full backup keeps the private role needed for restore');
+  assert.equal(exportedRole?.faction, '守护者', 'full backup keeps the private faction needed for restore');
+  assert.equal(exportedRole?.note, '主持人机密：夜晚第二个行动', 'full backup keeps moderator notes needed for restore');
+
   await page.getByRole('button', { name: '牌局模式' }).click();
   await page.getByRole('button', { name: '团队与身份', exact: true }).click();
   const firstRoleReveal = page.locator('[data-os-role-reveal]').first();
