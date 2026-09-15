@@ -107,6 +107,7 @@ The production Android signing key, Apple distribution identity/profile and stor
 
 - Chromium: manual ScoreSheet fields expose configured-step −/+ quick controls in Play mode while retaining direct numeric input; the controls stay out of Edit setup and reuse the same persisted live score values.
 - Correctness: step-button updates flow through the existing score setter/render path so formulas, totals and standings recompute from the same source of truth without a schema change.
+- Companion safety: Play-mode ScoreSheet −/+ taps participate in the same one-step undo surface as direct score edits, restoring the exact prior manual value without bypassing normal score recomputation.
 
 ### Score standings semantics
 
