@@ -97,6 +97,11 @@ The production Android signing key, Apple distribution identity/profile and stor
 | Phase timer template/privacy boundary | Normalize old phase data to `timerSeconds: 0`; bound duration to 0–86400; save/apply My Template duration only; verify no main-timer runtime fields enter My Templates and new-scenario reset preserves phase timer structure | Unit |
 
 
+### Live score step controls
+
+- Chromium: manual ScoreSheet fields expose configured-step −/+ quick controls in Play mode while retaining direct numeric input; the controls stay out of Edit setup and reuse the same persisted live score values.
+- Correctness: step-button updates flow through the existing score setter/render path so formulas, totals and standings recompute from the same source of truth without a schema change.
+
 ### Score standings semantics
 
 - Unit: highest-total and lowest-total modes sort deterministically; equal totals use competition ranking (`1, 1, 3`) and expose tie state.
