@@ -118,13 +118,22 @@ function tableHasSessionState(table) {
   const trackers = Array.isArray(table.trackers) ? table.trackers : [];
   const sessionTrackerValues = trackers.some(tracker => tracker?.persistence !== 'campaign'
     && tracker?.values && typeof tracker.values === 'object' && Object.keys(tracker.values).length > 0);
+  const statuses = Array.isArray(table.statuses) ? table.statuses : [];
+  const statusChanged = statuses.some(status => {
+    const values = status?.values && typeof status.values === 'object' ? status.values : {};
+    const initial = Boolean(status?.initial);
+    return Object.values(values).some(value => Boolean(value) !== initial);
+  });
   const phases = table.phases && typeof table.phases === 'object' ? table.phases : {};
   const phaseMoved = Number(phases.activeIndex || 0) !== 0 || Math.max(1, Number(phases.cycle) || 1) !== 1;
+  const checklistProgress = (Array.isArray(phases.items) ? phases.items : []).some(phase =>
+    (Array.isArray(phase?.checklist) ? phase.checklist : []).some(item => Boolean(item?.done))
+  );
   const rolesAssigned = Array.isArray(table.roles) && table.roles.length > 0;
   const scoreRows = table.scoreSheet?.values && typeof table.scoreSheet.values === 'object'
     ? Object.values(table.scoreSheet.values) : [];
   const scoresEntered = scoreRows.some(values => values && typeof values === 'object' && Object.keys(values).length > 0);
-  return Boolean(sessionTrackerValues || phaseMoved || rolesAssigned || scoresEntered || table.campaign?.enabled);
+  return Boolean(sessionTrackerValues || statusChanged || phaseMoved || checklistProgress || rolesAssigned || scoresEntered || table.campaign?.enabled);
 }
 
 function mainSessionLifecycle(game) {

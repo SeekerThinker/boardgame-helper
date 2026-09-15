@@ -212,6 +212,84 @@ async function runQuietLifecycleFlow() {
   await context.close();
 }
 
+async function runTransientLifecycleDetectionFlow() {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US' });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+  page.on('pageerror', error => errors.push(error.message));
+  page.on('dialog', dialog => dialog.accept());
+
+  await page.goto(url, { waitUntil: 'networkidle' });
+  await page.evaluate(() => localStorage.clear());
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.locator('[data-action="start-session"]').click();
+  await openTableOs(page);
+  await page.locator('[data-os-quick-template="card-battle"]').click();
+
+  // An explicit Status override that equals its default is not meaningful live state.
+  await page.getByRole('button', { name: 'Statuses', exact: true }).click();
+  let statusToggle = page.locator('[data-os-status-toggle]').first();
+  assert.equal(await statusToggle.getAttribute('aria-pressed'), 'false');
+  await statusToggle.click();
+  await statusToggle.click();
+  const defaultEquivalent = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1')));
+  assert.ok(defaultEquivalent.statuses.some(status => Object.keys(status.values || {}).length > 0), 'test seeds an explicit default-equivalent Status override');
+  await page.locator('.tableos-header [data-os-action="close"]').click();
+  await rematchMainGame(page);
+  await openTableOs(page);
+  assert.equal(await page.locator('[data-tableos-companion-action="new-session"]').count(), 0, 'default-equivalent Status overrides do not nag on rematch');
+
+  // A Status value that differs from its default is transient session state and must not silently carry over.
+  await page.getByRole('button', { name: 'Statuses', exact: true }).click();
+  statusToggle = page.locator('[data-os-status-toggle]').first();
+  await statusToggle.click();
+  assert.equal(await statusToggle.getAttribute('aria-pressed'), 'true');
+  await page.locator('.tableos-header [data-os-action="close"]').click();
+  await rematchMainGame(page);
+  await openTableOs(page);
+  const newSession = page.locator('[data-tableos-companion-action="new-session"]');
+  await newSession.waitFor({ state: 'visible' });
+  assert.match(await page.locator('[data-tableos-main-context]').textContent(), /New main game detected/);
+  await newSession.click();
+  await page.getByText('Session state reset for the new game.', { exact: true }).waitFor({ state: 'visible' });
+  const statusReset = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1')));
+  assert.ok(statusReset.statuses.every(status => Object.keys(status.values || {}).length === 0), 'accepted rematch reset clears Status live values');
+
+  // Checklist structure alone is reusable configuration, not live progress.
+  await page.getByRole('button', { name: 'Edit setup', exact: true }).click();
+  await page.getByRole('button', { name: 'Phases', exact: true }).click();
+  await page.locator('.tableos-phase.active .tableos-phase-checklist-editor > summary').click();
+  const checklistEditor = page.locator('.tableos-phase.active [data-os-phase-checklist]');
+  await checklistEditor.fill('Resolve upkeep');
+  await checklistEditor.blur();
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
+  await page.getByRole('button', { name: 'Phases', exact: true }).click();
+  let checklistItem = page.locator('[data-os-phase-check]').first();
+  assert.equal(await checklistItem.getAttribute('aria-pressed'), 'false');
+  await page.locator('.tableos-header [data-os-action="close"]').click();
+  await rematchMainGame(page);
+  await openTableOs(page);
+  assert.equal(await page.locator('[data-tableos-companion-action="new-session"]').count(), 0, 'unchecked checklist structure does not nag on rematch');
+
+  // Checked checklist progress is transient session state and must trigger the lifecycle choice.
+  await page.getByRole('button', { name: 'Phases', exact: true }).click();
+  checklistItem = page.locator('[data-os-phase-check]').first();
+  await checklistItem.click();
+  assert.equal(await checklistItem.getAttribute('aria-pressed'), 'true');
+  await page.locator('.tableos-header [data-os-action="close"]').click();
+  await rematchMainGame(page);
+  await openTableOs(page);
+  await newSession.waitFor({ state: 'visible' });
+  await newSession.click();
+  await page.getByText('Session state reset for the new game.', { exact: true }).waitFor({ state: 'visible' });
+  const checklistReset = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1')));
+  assert.ok(checklistReset.phases.items.every(phase => (phase.checklist || []).every(item => item.done === false)), 'accepted rematch reset clears checklist completion');
+
+  assert.equal(errors.length, 0, `Table OS transient lifecycle console errors: ${errors.join(' | ')}`);
+  await context.close();
+}
+
 async function runSessionLifecycleFlow() {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US' });
   const page = await context.newPage();
@@ -410,6 +488,7 @@ async function run() {
   browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
   await runPrimaryFlow();
   await runQuietLifecycleFlow();
+  await runTransientLifecycleDetectionFlow();
   await runSessionLifecycleFlow();
   await runTeamReplacementCleanupFlow();
   await runTouchTargetSmoke();
@@ -421,7 +500,7 @@ async function run() {
       'live main-game context', 'timer continuity', 'roster-drift detection', 'one-tap roster sync',
       'tracker undo', 'direct-value undo', 'exact clamped tracker undo', 'exact phase-boundary undo',
       'ordinary phase undo', 'main-timer bridge', 'contextual accessibility labels',
-      'quiet empty rematch', 'new-session detection', 'keep-current lifecycle choice',
+      'quiet empty rematch', 'status/checklist rematch transient detection', 'new-session detection', 'keep-current lifecycle choice',
       'safe rematch reset', 'campaign tracker persistence across rematch', 'transient state reset across rematch',
       'toolbox re-team stale-value cleanup', 'fresh team defaults after replacement',
       '44px live touch targets', '320px overflow'
