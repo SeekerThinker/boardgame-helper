@@ -1,0 +1,38 @@
+name: Rematch transient detection migration gate
+
+on:
+  push:
+    branches:
+      - fix/rematch-transient-detection
+
+permissions:
+  contents: write
+
+jobs:
+  migrate-and-check:
+    if: "github.event.head_commit.message != 'fix: detect rematch transient Table OS state'"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply focused migration
+        run: python scripts/migrate-rematch-transient-detection.py
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run full check
+        run: npm run check
+      - name: Commit product changes and remove migration scaffolding
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/tabletop-companion.js tests/e2e/run-table-os-companion-e2e.js docs/TABLE_OS_TEST_MATRIX.md
+          git rm scripts/migrate-rematch-transient-detection.py .github/workflows/migrate-rematch-transient-detection.yml
+          git commit -m "fix: detect rematch transient Table OS state"
+          git push origin HEAD:fix/rematch-transient-detection
