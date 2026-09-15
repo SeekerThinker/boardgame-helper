@@ -7,7 +7,7 @@ const I18N = {
   zh: {
     mainGame: '主对局', round: '第 {value} 轮', running: '进行中', paused: '已暂停', openFlow: '主计时器',
     undo: '撤销上一步', undone: '已撤销上一步。', undoUnavailable: '这一步已经无法撤销。',
-    trackerAction: '状态调整', phaseAction: '阶段切换', scoreAction: '计分修改', flagAction: '检查点修改',
+    trackerAction: '状态调整', statusAction: '状态开关', phaseAction: '阶段切换', scoreAction: '计分修改', flagAction: '检查点修改',
     increase: '增加', decrease: '减少', setValue: '设置', switchPhase: '切换到阶段',
     rosterChanged: '主对局玩家已变更', syncRoster: '同步玩家', rosterSynced: '已同步主对局玩家。',
     newSessionDetected: '检测到新的主牌局', startNewSession: '开始新一局', keepTableState: '保留当前桌面',
@@ -16,7 +16,7 @@ const I18N = {
   en: {
     mainGame: 'Main game', round: 'Round {value}', running: 'Running', paused: 'Paused', openFlow: 'Main timer',
     undo: 'Undo last action', undone: 'Last action undone.', undoUnavailable: 'That action can no longer be undone.',
-    trackerAction: 'Tracker adjustment', phaseAction: 'Phase change', scoreAction: 'Score edit', flagAction: 'Checkpoint change',
+    trackerAction: 'Tracker adjustment', statusAction: 'Status toggle', phaseAction: 'Phase change', scoreAction: 'Score edit', flagAction: 'Checkpoint change',
     increase: 'Increase', decrease: 'Decrease', setValue: 'Set', switchPhase: 'Switch to phase',
     rosterChanged: 'Main-game players changed', syncRoster: 'Sync players', rosterSynced: 'Main-game players synced.',
     newSessionDetected: 'New main game detected', startNewSession: 'Start new table', keepTableState: 'Keep table state',
@@ -250,6 +250,21 @@ function valueUndoFromInput(input, previous) {
       if (!(target instanceof HTMLInputElement)) return;
       target.value = previous;
       target.dispatchEvent(new Event('change', { bubbles: true }));
+      restored = true;
+    });
+    return restored;
+  };
+}
+
+function statusUndoFromButton(button) {
+  const value = button.dataset.osStatusToggle;
+  if (!value) return null;
+  return () => {
+    let restored = false;
+    runInSection('statuses', () => {
+      const target = document.querySelector(dataSelector('data-os-status-toggle', value));
+      if (!(target instanceof HTMLElement)) return;
+      target.click();
       restored = true;
     });
     return restored;
@@ -512,6 +527,13 @@ document.addEventListener('click', event => {
   if (suppressCapture) return;
   if (element.closest(BARRIER_SELECTOR)) { clearUndo(); return; }
   if (!inPlayMode()) return;
+
+  const status = element.closest('[data-os-status-toggle]');
+  if (status) {
+    const run = statusUndoFromButton(status);
+    if (run) captureUndo(tr('statusAction'), run);
+    return;
+  }
 
   const tracker = element.closest('[data-os-tracker-delta]');
   if (tracker) {
