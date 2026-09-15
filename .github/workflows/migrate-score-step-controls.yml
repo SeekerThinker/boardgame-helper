@@ -1,0 +1,40 @@
+name: Migrate score step controls
+
+on:
+  push:
+    branches:
+      - ux/score-step-controls
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ux/score-step-controls
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Apply focused migration
+        run: python .github/scripts/migrate-score-step-controls.py
+      - name: Validate migrated workspace
+        run: |
+          git diff --check
+          npm run check
+      - name: Commit product diff and remove migration scaffolding
+        run: |
+          rm .github/scripts/migrate-score-step-controls.py .github/workflows/migrate-score-step-controls.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git diff --cached --quiet && { echo "No migration diff produced"; exit 1; }
+          git commit -m "feat: add live score step controls"
+          git push origin HEAD:ux/score-step-controls
