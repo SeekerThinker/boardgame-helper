@@ -132,6 +132,22 @@ async function runPrimaryFlow() {
   await page.locator('[data-tableos-companion-action="undo"]').click();
   assert.equal(await threatValue.inputValue(), '95', 'clamped tracker tap restores the exact prior value');
 
+  // Status toggles are high-frequency live actions and are one-step reversible.
+  await page.getByRole('button', { name: '编辑配置', exact: true }).click();
+  await page.getByRole('button', { name: '状态', exact: true }).click();
+  await page.getByRole('button', { name: '添加状态', exact: true }).click();
+  const statusName = page.locator('[data-os-status-name]').last();
+  await statusName.fill('准备完成');
+  await statusName.blur();
+  await page.getByRole('button', { name: '牌局模式', exact: true }).click();
+  await page.getByRole('button', { name: '状态', exact: true }).click();
+  const statusToggle = page.locator('[data-os-status-toggle]').last();
+  assert.equal(await statusToggle.getAttribute('aria-pressed'), 'false', 'custom status starts from its default off value');
+  await statusToggle.click();
+  assert.equal(await statusToggle.getAttribute('aria-pressed'), 'true', 'status tap changes the live value');
+  await page.locator('[data-tableos-companion-action="undo"]').click();
+  assert.equal(await statusToggle.getAttribute('aria-pressed'), 'false', 'status tap can be undone to the exact prior value');
+
   // ScoreSheet quick-step taps use the same one-step recovery as direct score edits.
   await page.getByRole('button', { name: '计分表', exact: true }).click();
   const quickScoreValue = page.locator('[data-os-score-value]').first();

@@ -42,6 +42,7 @@ The production Android signing key, Apple distribution identity/profile and stor
 - Unit: normalization from older schema, entity validation/pruning, shelf limit, default restoration on new scenario, localized built-in statuses.
 - Unit: My Templates preserve status definitions but exclude live values and participant identifiers.
 - Chromium: Card Battle Poisoned/Stunned toggles, Hidden Roles Alive default, new-scenario reset, custom global status, template privacy/fresh apply, and same-session reload persistence.
+- Companion safety: Play-mode Status toggles participate in one-step undo, restoring the exact prior on/off value through the existing toggle path without changing Status persistence semantics.
 
 ### Team replacement cleanup
 
