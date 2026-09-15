@@ -121,3 +121,9 @@ The production Android signing key, Apple distribution identity/profile and stor
 
 - Chromium: switching from a live Phase surface into Edit setup keeps Phase selected and exposes its editor immediately; switching back to Play keeps the same Phase surface without an extra navigation tap.
 - Fallback: sections that are intentionally hidden in Play mode may still return to Overview, so continuity never exposes empty/config-only modules.
+
+### Companion rematch transient-state detection
+
+- Lifecycle detection: changed Status values and checked Phase checklist items count as session-local Table OS state, so a new main-game session requires the existing explicit Start New Table / Keep Table State choice instead of silently carrying them forward.
+- Noise control: a Status override equal to its configured default and an unchecked checklist structure do not count as live progress, so clean rematches remain silent.
+- Chromium: isolated Status-only and checklist-only rematches prove meaningful transient state triggers the lifecycle choice and accepted reset clears the live values/progress through the existing `resetTableOsSession()` path.
