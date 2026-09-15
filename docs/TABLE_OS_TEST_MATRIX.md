@@ -48,6 +48,7 @@ The production Android signing key, Apple distribution identity/profile and stor
 - Unit: replacing the whole team roster creates fresh team identities, keeps only valid participant membership, and clears retired team-scoped Tracker/Status overrides before persistence/export.
 - Chromium: adopting toolbox teams removes retired team IDs and hidden live values; replacement teams render the Tracker/Status defaults instead.
 - Play/Edit safety: whole-team adoption is configuration-only in Edit mode; Play keeps the live team/role surface read-focused, and section continuity makes the replacement workflow one mode switch away.
+- Destructive confirmation: when teams already exist, Edit setup must disclose that toolbox adoption replaces the team roster and clears old team-scoped Tracker/Status live values; cancel leaves the current teams untouched.
 
 ### Normalization stale-entity cleanup
 
