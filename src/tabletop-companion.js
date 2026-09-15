@@ -273,6 +273,23 @@ function trackerUndoFromButton(button) {
   return valueUndoFromInput(input, input.value);
 }
 
+
+function scoreUndoFromButton(button) {
+  const raw = button.dataset.osScoreDelta;
+  if (!raw) return null;
+  const parts = raw.split('|');
+  if (parts.length !== 3) return null;
+  const delta = Number(parts[2]);
+  const stepper = button.closest('.tableos-score-stepper');
+  const input = stepper?.querySelector('[data-os-score-value]');
+  if (!(input instanceof HTMLInputElement) || !Number.isFinite(delta)) return null;
+  const current = Number(input.value);
+  if (!Number.isFinite(current)) return null;
+  const next = Math.min(999999, Math.max(-999999, current + delta));
+  if (next === current) return null;
+  return valueUndoFromInput(input, input.value);
+}
+
 function phaseSnapshot() {
   const phases = readTableOsState()?.phases;
   if (!phases || !Array.isArray(phases.items) || !phases.items.length) return null;
@@ -500,6 +517,13 @@ document.addEventListener('click', event => {
   if (tracker) {
     const run = trackerUndoFromButton(tracker);
     if (run) captureUndo(tr('trackerAction'), () => { let ok = false; runInSection('trackers', () => { ok = run() !== false; }); return ok; });
+    return;
+  }
+
+  const score = element.closest('[data-os-score-delta]');
+  if (score) {
+    const run = scoreUndoFromButton(score);
+    if (run) captureUndo(tr('scoreAction'), () => { let ok = false; runInSection('score', () => { ok = run() !== false; }); return ok; });
     return;
   }
 

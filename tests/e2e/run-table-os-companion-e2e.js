@@ -132,6 +132,16 @@ async function runPrimaryFlow() {
   await page.locator('[data-tableos-companion-action="undo"]').click();
   assert.equal(await threatValue.inputValue(), '95', 'clamped tracker tap restores the exact prior value');
 
+  // ScoreSheet quick-step taps use the same one-step recovery as direct score edits.
+  await page.getByRole('button', { name: '计分表', exact: true }).click();
+  const quickScoreValue = page.locator('[data-os-score-value]').first();
+  const quickScorePlus = page.locator('[data-os-score-delta]').filter({ hasText: '+' }).first();
+  const quickScoreBefore = await quickScoreValue.inputValue();
+  await quickScorePlus.click();
+  assert.equal(await quickScoreValue.inputValue(), String(Number(quickScoreBefore) + 1), 'score quick-step updates the live value');
+  await page.locator('[data-tableos-companion-action="undo"]').click();
+  assert.equal(await quickScoreValue.inputValue(), quickScoreBefore, 'score quick-step can be undone to the exact prior value');
+
   // Phase changes are reversible, including the lower cycle boundary where inverse navigation is not symmetric.
   await page.getByRole('button', { name: '阶段', exact: true }).click();
   const firstPhase = await page.locator('.tableos-phase.active strong').textContent();
