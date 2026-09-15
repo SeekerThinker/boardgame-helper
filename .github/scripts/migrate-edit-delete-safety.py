@@ -47,7 +47,19 @@ replace_once(
 )
 
 replace_once(
+    'tests/e2e/run-table-os-entities-e2e.js',
+    "  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });\n  page.on('pageerror', error => errors.push(error.message));",
+    "  const deleteConfirms = [];\n  page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });\n  page.on('pageerror', error => errors.push(error.message));\n  page.on('dialog', async dialog => { deleteConfirms.push(dialog.message()); await dialog.accept(); });"
+)
+
+replace_once(
+    'tests/e2e/run-table-os-entities-e2e.js',
+    "  await page.locator(`[data-os-remove-entity=\"${bossId}\"]`).click();\n  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1')));",
+    "  await page.locator(`[data-os-remove-entity=\"${bossId}\"]`).click();\n  assert.match(deleteConfirms.at(-1), /无法撤销/, 'entity removal uses the shared destructive-delete confirmation gate');\n  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('board-game-assistant-table-os-v1')));"
+)
+
+replace_once(
     'docs/TABLE_OS_TEST_MATRIX.md',
     "### Large-table roster setup\n",
-    "### Edit-mode destructive delete safety\n\n- Interaction boundary: participant, entity, status, tracker, phase, team, role, score-field and campaign-checkpoint removal controls share one Edit-mode confirmation gate; Play mode does not gain any new destructive controls or prompts.\n- Chromium: canceling a destructive participant deletion leaves the roster and persisted workspace untouched, while accepting the same action continues through the existing cleanup path.\n- Data-loss disclosure: the bilingual confirmation explicitly states that related setup/live table data is removed and the action cannot be undone; existing core cleanup semantics remain unchanged.\n\n### Large-table roster setup\n"
+    "### Edit-mode destructive delete safety\n\n- Interaction boundary: participant, entity, status, tracker, phase, team, role, score-field and campaign-checkpoint removal controls share one Edit-mode confirmation gate; Play mode does not gain any new destructive controls or prompts.\n- Chromium: canceling a destructive participant deletion leaves the roster and persisted workspace untouched; accepting an entity deletion with live entity-scoped Tracker/Status values confirms first and then preserves the existing cleanup semantics.\n- Data-loss disclosure: the bilingual confirmation explicitly states that related setup/live table data is removed and the action cannot be undone; existing core cleanup semantics remain unchanged.\n\n### Large-table roster setup\n"
 )
