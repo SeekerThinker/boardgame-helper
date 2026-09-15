@@ -90,13 +90,13 @@ async function run() {
   assert.equal(confirmMessages.length, 2, 'accepting the same valid import still uses the confirmation gate');
   assert.ok(await page.getByRole('button', { name: '编辑配置' }).isVisible(), 'successful import keeps the existing normalization rule that reopens Table OS in Play mode');
 
-  const afterValidRaw = await page.evaluate(() => localStorage.getItem('board-game-assistant-table-os-v1'));
   const confirmsBeforeInvalid = confirmMessages.length;
   await page.getByRole('button', { name: '编辑配置' }).click();
+  const beforeInvalidRaw = await page.evaluate(() => localStorage.getItem('board-game-assistant-table-os-v1'));
   await page.locator('#tableos-import-file').setInputFiles(jsonFile('broken.json', '{ definitely not valid json'));
   await page.getByText('导入失败：文件不是有效的桌面 OS 数据。', { exact: true }).waitFor();
   assert.equal(confirmMessages.length, confirmsBeforeInvalid, 'invalid files fail without a destructive-overwrite confirmation');
-  assert.equal(await page.evaluate(() => localStorage.getItem('board-game-assistant-table-os-v1')), afterValidRaw, 'invalid import attempts never change persisted Table OS data');
+  assert.equal(await page.evaluate(() => localStorage.getItem('board-game-assistant-table-os-v1')), beforeInvalidRaw, 'invalid import attempts never change persisted Table OS data');
 
   assert.deepEqual(errors, []);
   await context.close();
