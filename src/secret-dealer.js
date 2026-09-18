@@ -50,6 +50,7 @@ let publicSteps = [];
 let playerIndex = 0;
 let stepIndex = 0;
 let stage = 'cover';
+let viewedAndHidden = false;
 let error = '';
 let draft = { names: '', cards: '', steps: '' };
 let root = null;
@@ -65,6 +66,7 @@ function reset() {
   playerIndex = 0;
   stepIndex = 0;
   stage = 'cover';
+  viewedAndHidden = false;
   error = '';
   draft = { names: '', cards: '', steps: '' };
 }
@@ -103,7 +105,7 @@ function render(focusAction = '') {
   root.innerHTML = `<div class="secret-backdrop"><section class="secret-panel" role="dialog" aria-modal="true" aria-labelledby="secret-title" tabindex="-1">
     <header><h2 id="secret-title">${esc(tr('title'))}</h2><button type="button" data-secret-action="close" aria-label="${esc(tr('close'))}">×</button></header>
     ${deal ? playing() : editor()}
-    ${deal && playerIndex < deal.length && stage === 'cover' ? `<div class="secret-actions"><button type="button" data-secret-action="next">${esc(playerIndex === deal.length - 1 ? tr('finish') : tr('next'))}</button><button type="button" class="secret-danger" data-secret-action="clear">${esc(tr('clear'))}</button></div>` : ''}
+    ${deal && playerIndex < deal.length && stage === 'cover' && viewedAndHidden ? `<div class="secret-actions"><button type="button" data-secret-action="next">${esc(playerIndex === deal.length - 1 ? tr('finish') : tr('next'))}</button><button type="button" class="secret-danger" data-secret-action="clear">${esc(tr('clear'))}</button></div>` : ''}
     <footer>${esc(tr('privacy'))}</footer>
   </section></div>`;
   if (!document.hidden) (root.querySelector(`[data-secret-action="${focusAction}"]`) || root.querySelector('.secret-panel'))?.focus({ preventScroll: true });
@@ -145,8 +147,8 @@ function handle(action) {
   if (!deal) return;
   if (action === 'arm' && stage === 'cover' && playerIndex < deal.length) { stage = 'armed'; render('reveal'); return; }
   if (action === 'reveal' && stage === 'armed' && playerIndex < deal.length) { stage = 'shown'; render('hide'); return; }
-  if (action === 'hide' && stage === 'shown') { stage = 'cover'; render('next'); return; }
-  if (action === 'next' && stage === 'cover' && playerIndex < deal.length) { playerIndex += 1; render(playerIndex < deal.length ? 'arm' : 'clear'); return; }
+  if (action === 'hide' && stage === 'shown') { stage = 'cover'; viewedAndHidden = true; render('next'); return; }
+  if (action === 'next' && stage === 'cover' && viewedAndHidden && playerIndex < deal.length) { playerIndex += 1; viewedAndHidden = false; render(playerIndex < deal.length ? 'arm' : 'clear'); return; }
   if (action === 'previous' && playerIndex >= deal.length && stepIndex > 0) { stepIndex -= 1; render('previous'); return; }
   if (action === 'following' && playerIndex >= deal.length && stepIndex < publicSteps.length - 1) { stepIndex += 1; render('following'); }
 }

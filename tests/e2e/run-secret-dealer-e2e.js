@@ -52,6 +52,7 @@ async function flow(language) {
   assert.equal(await page.evaluate(() => JSON.stringify(localStorage).includes('PRIVATE_ALPHA_91')), false, 'no secret stored in localStorage');
 
   for (let i = 0; i < 3; i++) {
+    assert.equal(await root.locator('[data-secret-action="next"]').count(), 0, 'cannot skip an unseen private card');
     await root.locator('[data-secret-action="arm"]').click();
     await checkNoSecrets(page, secrets);
     await root.locator('[data-secret-action="reveal"]').click();
