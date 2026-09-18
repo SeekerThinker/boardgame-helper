@@ -4,6 +4,17 @@
 
 产品原则是：**简单桌游保持简单，复杂桌游只在需要时展开高级能力。** Table OS 默认进入精简的「牌局模式」，模板、公式、结构编辑、导入导出等高级配置统一收进「编辑配置」，避免桌游助手本身变成桌上新的管理负担。
 
+## 当前入口与真实发布状态
+
+- 主页同级入口是**选游戏／桌面 OS／工具箱**。图鉴先点材料与人数，文本搜索只作为辅助；普通计时、计分及 Table OS 继续可用。
+- 「秘密发牌与主持」提供无需逐条输入的**通用内置分配预设**，也允许自定义内容；按交给玩家 → 主动揭示 → 遮蔽的流程查看。预设不是《狼人杀》《谁是卧底》等具名游戏的授权规则或角色／词库包。
+- **图鉴公开游戏目前为 0 条**：仓库 `editorial/candidates/` 的候选仅供编辑审查，未获逐项权利复核和真实试玩前不进入正式图鉴或网站构建。具体边界见 [`docs/GAME_LIBRARY_EDITORIAL.md`](docs/GAME_LIBRARY_EDITORIAL.md) 与 [Issue #53](https://github.com/SeekerThinker/boardgame-helper/issues/53)。
+- 当前 Web 预览通过 **GitHub Pages** 部署；尚未切换 Cloudflare。项目版本仍为 **1.1.0**；Android/iOS 真实生产签名、商店提交及 GitHub 分支保护等外部工作见 [Issue #14](https://github.com/SeekerThinker/boardgame-helper/issues/14)。CI 的 Android 临时测试签名不等于正式商店签名。
+
+## 协作、接手与贡献
+
+新接手的开发者或 AI 先读 [`AGENTS.md`](AGENTS.md) 与 [`docs/PROJECT_STATE.md`](docs/PROJECT_STATE.md)，然后按任务查看 [`docs/DECISIONS.md`](docs/DECISIONS.md)、相应 Issue/PR 和领域文档。提交 PR 时使用 [检查模板](.github/pull_request_template.md)：自动 CI、人工编辑审核、真人试玩和真实商店签名是不同的门槛。上述状态页是带日期的索引，不替代 GitHub 最新事实；目前**未为代码或图鉴内容选定对外许可条款**，不要以仓库公开可读推定任意复用权限。
+
 ## 功能
 
 - 流程：当前行动者计时、结束行动切人、保存本轮、进入下一轮；行动顺序卡片上可直接 ±1 快捷记分
