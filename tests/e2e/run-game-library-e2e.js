@@ -40,15 +40,25 @@ async function scenario(locale, width) {
   await dialog.waitFor({ state: 'visible' });
   assert.match(await dialog.textContent(), english ? /No games have completed editorial and rights review yet/ : /尚无完成审核并可公开的游戏条目/);
   assert.equal(await dialog.locator('[data-game-detail]').count(), 0, 'no unreviewed games can be opened');
-  assert.ok(await dialog.locator('[data-library-choices]').isVisible(), 'choosing replaces search as the primary flow');
+  assert.ok(await dialog.locator('[data-library-choices]').isVisible(), 'material choices remain the primary flow');
+  assert.ok(await dialog.locator('[data-library-player-choices]').isVisible(), 'player count is a tap-first section');
+  assert.equal(await dialog.locator('[data-library-player-choice]').count(), 8, 'common counts and Any are visible');
   assert.ok(await dialog.locator('[data-game-material]').isVisible(), 'material selection exists');
-  assert.ok(await dialog.locator('[data-game-players]').isVisible(), 'player count selection exists');
+  assert.ok(await dialog.locator('[data-game-players]').isVisible(), 'exact player count remains accessible for other counts');
   assert.ok(!(await dialog.locator('[data-game-query]').isVisible()), 'optional text search is initially collapsed');
   const before = await page.evaluate(() => JSON.stringify(localStorage));
   await dialog.locator('[data-library-material="none"]').click();
   assert.equal(await dialog.locator('[data-game-material]').inputValue(), 'none');
   assert.equal(await dialog.locator('[data-library-material="none"]').getAttribute('aria-pressed'), 'true');
-  await dialog.locator('[data-game-players]').selectOption('5');
+  await dialog.locator('[data-library-player-choice="5"]').click();
+  assert.equal(await dialog.locator('[data-game-players]').inputValue(), '5');
+  assert.equal(await dialog.locator('[data-library-player-choice="5"]').getAttribute('aria-pressed'), 'true');
+  await dialog.locator('[data-game-players]').selectOption('7');
+  assert.equal(await dialog.locator('[data-library-player-choice="5"]').getAttribute('aria-pressed'), 'false', 'other exact counts deselect the shortcuts');
+  await dialog.locator('[data-library-player-choice=""]').click();
+  assert.equal(await dialog.locator('[data-game-players]').inputValue(), '');
+  assert.equal(await dialog.locator('[data-library-player-choice=""]').getAttribute('aria-pressed'), 'true');
+  await dialog.locator('[data-library-player-choice="3"]').click();
   await dialog.locator('[data-library-search]').evaluate(element => { element.open = true; });
   await dialog.locator('[data-game-query]').fill('incomplete draft');
   assert.equal(await dialog.locator('[data-game-detail]').count(), 0);
@@ -56,6 +66,7 @@ async function scenario(locale, width) {
   assert.equal(await dialog.locator('[data-game-query]').inputValue(), '');
   assert.equal(await dialog.locator('[data-game-material]').inputValue(), 'all');
   assert.equal(await dialog.locator('[data-game-players]').inputValue(), '');
+  assert.equal(await dialog.locator('[data-library-player-choice=""]').getAttribute('aria-pressed'), 'true', 'reset updates shortcut selection');
   assert.equal(await page.evaluate(() => JSON.stringify(localStorage)), before, 'catalog navigation does not write game data');
   const dimensions = await dialog.evaluate(element => ({ left: element.getBoundingClientRect().left, right: element.getBoundingClientRect().right, scroll: element.scrollWidth, client: element.clientWidth }));
   assert.ok(dimensions.left >= 0 && dimensions.right <= width + 1, `library must fit ${width}px viewport: ${JSON.stringify(dimensions)}`);
@@ -64,6 +75,7 @@ async function scenario(locale, width) {
   assert.equal(await page.locator('#game-library-root').isHidden(), true);
   assert.equal(await launcher.evaluate(element => element === document.activeElement), true, 'focus returns to primary navigation');
   await launcher.click();
+  assert.ok(await dialog.locator('[data-library-player-choices]').isVisible(), 'choices are rebuilt when reopened');
   await dialog.locator('[data-game-action="dealer"]').click();
   assert.equal(await page.locator('#game-library-root').isHidden(), true, 'tool handoff closes library');
   await page.locator('#secret-dealer-root [role="dialog"]').waitFor({ state: 'visible' });
@@ -78,7 +90,7 @@ try {
   browser = await chromium.launch({ headless: true });
   await scenario('zh-CN', 320);
   await scenario('en-US', 390);
-  console.log('Game library E2E passed (primary navigation, choice-first selectors, no unpublished content, privacy, mobile, bilingual).');
+  console.log('Game library E2E passed (primary navigation, tap-first materials/player counts, no unpublished content, privacy, mobile, bilingual).');
 } finally {
   await browser?.close();
   if (server) { server.kill(); await new Promise(resolve => server.once('exit', resolve)); }
