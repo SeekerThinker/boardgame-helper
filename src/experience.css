@@ -1,0 +1,56 @@
+/* Equal-weight top-level sections; original launchers retain their IDs and actions. */
+#primary-navigation, #quick-host-tools { width: min(1180px, 100%); margin: 0 auto; padding-inline: clamp(12px, 3vw, 28px); }
+#primary-navigation { padding-top: max(12px, env(safe-area-inset-top)); }
+.primary-navigation-heading { margin: 0 0 13px; }
+.primary-navigation-heading p:first-child { font-size: 12px; font-weight: 900; letter-spacing: .08em; color: #5eead4; }
+.primary-navigation-heading p:last-child { margin-top: 5px; font-size: clamp(13px, 2vw, 16px); color: #cbd5e1; }
+#primary-navigation nav { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(6px, 1.6vw, 14px); }
+#primary-navigation nav > button, #primary-navigation #tableos-launcher, #primary-navigation #game-library-launcher {
+  position: static; inset: auto; z-index: auto; width: 100%; min-width: 0; min-height: clamp(68px, 9vw, 106px);
+  padding: 12px 10px; border: 1px solid #465668; border-radius: 16px;
+  background: linear-gradient(145deg, #1b3540, #18212f); color: #f8fafc;
+  font: 850 clamp(14px, 2vw, 21px)/1.3 system-ui, sans-serif;
+  letter-spacing: 0; box-shadow: 0 12px 27px #0004; cursor: pointer;
+}
+#primary-navigation #game-library-launcher { background: linear-gradient(145deg, #0b625d, #172b35); border-color: #46baa9; }
+#primary-navigation #tableos-launcher { background: linear-gradient(145deg, #273d70, #1b293e); border-color: #7192d3; }
+#primary-navigation nav > button:hover { filter: brightness(1.17); }
+#primary-navigation nav > button:focus-visible, #quick-host-tools #secret-dealer-launcher:focus-visible { outline: 3px solid #5eead4; outline-offset: 3px; }
+#quick-host-tools { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 12px; }
+#quick-host-tools > div { min-width: 0; }
+#quick-host-tools h2 { color: #e2e8f0; font-size: clamp(15px, 2vw, 19px); }
+#quick-host-tools p { margin-top: 3px; color: #94a3b8; font-size: 12px; line-height: 1.4; }
+#quick-host-tools #secret-dealer-launcher { position: static; inset: auto; flex: 0 0 auto; min-height: 46px; padding: 11px 15px; font-size: 14px; }
+/* Full, readable workspaces rather than tiny side overlays. */
+.game-library-backdrop { padding: 12px; }
+.game-library-panel { width: min(1120px, 100%); max-height: 96dvh; min-height: min(75dvh, 650px); }
+.library-choice-section { margin: 16px 0; padding: 15px; border: 1px solid #355d62; border-radius: 16px; background: linear-gradient(130deg, #0f292d, #111827); }
+.library-choice-section h3 { margin: 0 0 4px; font-size: 19px; }
+.library-choice-section p { margin: 0 0 12px; color: #adbecb; font-size: 13px; }
+.library-choice-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.game-library-panel .library-choice-grid button { min-height: 60px; padding: 8px 5px; font-weight: 800; overflow-wrap: anywhere; }
+.game-library-panel .library-choice-grid button[aria-pressed="true"] { background: #0f766e; border-color: #5eead4; box-shadow: inset 0 0 0 1px #5eead4; }
+.library-optional-search { margin: 10px 0 16px; color: #b9c7d5; }
+.library-optional-search summary { cursor: pointer; font-size: 13px; font-weight: 750; padding: 8px 0; }
+.library-optional-search label { display: grid; gap: 6px; margin: 6px 0; font-size: 12px; }
+.library-optional-search input { min-height: 44px; padding: 8px 11px; }
+.ready-deal { margin: 16px 0; border: 1px solid #3e857e; border-radius: 16px; background: linear-gradient(135deg, #103b37, #142536); padding: 14px; }
+.ready-deal h3 { margin: 0 0 12px; font-size: 19px; }
+.ready-deal-controls { display: grid; grid-template-columns: minmax(0, 2fr) minmax(90px, 1fr); gap: 10px; }
+.secret-panel .ready-deal-controls label { margin: 0; }
+.ready-deal-controls select { display: block; width: 100%; min-height: 44px; margin-top: 5px; border: 1px solid #618b91; border-radius: 9px; background: #061d27; color: #fff; padding: 8px; font-size: 15px; }
+.secret-panel .ready-deal-go { width: 100%; min-height: 46px; margin: 12px 0 0; font-size: 16px; }
+.ready-deal-note { margin-top: 9px; color: #a6bfc5; font-size: 12px; }
+.ready-deal-custom { margin-top: 14px; padding-top: 14px; border-top: 1px solid #334155; font-size: 13px; color: #b7c9d5; }
+.ready-deal [hidden] { display: none; }
+@media (max-width: 620px) {
+  #quick-host-tools { align-items: stretch; flex-direction: column; gap: 8px; }
+  #quick-host-tools #secret-dealer-launcher { width: 100%; }
+  .library-choice-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .game-library-panel { padding: 14px; }
+}
+@media (max-width: 350px) {
+  #primary-navigation nav > button, #primary-navigation #tableos-launcher, #primary-navigation #game-library-launcher { min-height: 62px; font-size: 13px; padding: 8px 3px; }
+  .library-choice-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ready-deal-controls { grid-template-columns: minmax(0, 1fr); }
+}
