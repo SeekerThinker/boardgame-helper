@@ -106,7 +106,7 @@ function decorateDealer() {
     <option value="different-word">${t('word')}</option><option value="two-groups">${t('groups')}</option><option value="one-special">${t('special')}</option>
     </select></label><label>${t('count')}<select data-ready-count>${Array.from({ length: 15 }, (_, index) => index + 2).map(count => `<option value="${count}" ${count === 5 ? 'selected' : ''}>${count}</option>`).join('')}</select></label></div>
     <button type="button" class="secret-primary ready-deal-go" data-ready-start>${t('ready')}</button>
-    <p class="ready-deal-note">${t('disclaimer')}</p><p class="secret-error" role="alert" data-ready-error hidden></p>`;
+    <p class="ready-deal-note">${t('disclaimer')}</p><p class="secret-error" data-ready-error hidden></p>`;
   intro.after(box);
   const custom = document.createElement('p');
   custom.className = 'ready-deal-custom';
@@ -146,7 +146,7 @@ function initialize() {
       for (const key of ['names', 'cards', 'steps']) dealer.querySelector(`[data-secret-input="${key}"]`).value = preset[key];
       dealer.querySelector('[data-secret-action="deal"]').click();
     } catch (cause) {
-      if (error) { error.hidden = false; error.textContent = cause.message === 'players' ? t('minimum') : t('secure'); }
+      if (error) { error.textContent = cause.message === 'players' ? t('minimum') : t('secure'); error.setAttribute('role', 'alert'); error.hidden = false; }
     }
   });
   decorateLibrary();
