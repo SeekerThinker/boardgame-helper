@@ -1,0 +1,10 @@
+/* The native exact-count select stays available for every count from 1 to 32. */
+.library-player-choices { margin: 12px 0 16px; padding: 15px; border: 1px solid #375176; border-radius: 16px; background: linear-gradient(130deg, #192a45, #111827); }
+.library-player-choices h3 { margin: 0 0 4px; font-size: 19px; color: #eaf3ff; }
+.library-player-choices p { margin: 0 0 12px; color: #b7c7da; font-size: 13px; line-height: 1.5; }
+.library-player-choice-grid { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px; }
+.game-library-panel .library-player-choice-grid button { min-width: 0; min-height: 52px; padding: 8px 4px; border-radius: 10px; font-weight: 800; font-size: 16px; }
+.game-library-panel .library-player-choice-grid button[aria-pressed="true"] { background: #2558a6; border-color: #91baff; box-shadow: inset 0 0 0 1px #91baff; }
+.game-library-panel .library-player-choice-grid button:focus-visible { outline: 3px solid #91baff; outline-offset: 2px; }
+@media (max-width: 620px) { .library-player-choice-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 350px) { .library-player-choice-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; } .game-library-panel .library-player-choice-grid button { min-height: 48px; } }

@@ -70,6 +70,13 @@ async function run() {
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.locator('[data-template]').first().waitFor({ state: 'visible' });
   assert.equal(await page.locator('[data-template]').count(), 6);
+  await page.locator('#game-library-launcher').click();
+  const library = page.locator('#game-library-root [role="dialog"]');
+  await library.locator('[data-library-player-choices]').waitFor({ state: 'visible' });
+  await library.locator('[data-library-player-choice="4"]').click();
+  assert.equal(await library.locator('[data-game-players]').inputValue(), '4', 'offline player choice uses the real catalog filter');
+  assert.equal(await library.locator('[data-game-detail]').count(), 0, 'offline draft candidates remain private');
+  await page.keyboard.press('Escape');
   await context.setOffline(false);
 
   await page.goto(`${appUrl}privacy.html`, { waitUntil: 'networkidle' });
@@ -85,7 +92,7 @@ async function run() {
     event: 'subpath-e2e-summary',
     status: 'PASS',
     basePath,
-    checks: ['relative assets', 'relative manifest', 'scoped service worker', 'offline reload', 'privacy return navigation']
+    checks: ['relative assets', 'relative manifest', 'scoped service worker', 'offline reload and player choices', 'privacy return navigation']
   }, null, 2));
 }
 
