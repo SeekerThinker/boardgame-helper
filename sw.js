@@ -8,7 +8,8 @@ const APP_SHELL = [
   'src/app.js', 'src/core.js', 'src/i18n.js', 'src/native.js', 'src/audio.js', 'src/archive.js', 'src/archive-delete-guard.js', 'src/style.css',
   'src/tabletop-event-boundary.js', 'src/tabletop-import-guard.js', 'src/tabletop-roster-sync-guard.js', 'src/tabletop.js', 'src/tabletop-core.js', 'src/tabletop.css',
   'src/tabletop-companion.js', 'src/tabletop-companion.css', 'src/tabletop-archive-bridge.js',
-  'src/secret-dealer.js', 'src/secret-dealer-core.js', 'src/secret-dealer.css'
+  'src/secret-dealer.js', 'src/secret-dealer-core.js', 'src/secret-dealer.css',
+  'src/game-library.js', 'src/game-library-core.js', 'src/game-library-data.js', 'src/game-library.css'
 ].map(appUrl);
 
 self.addEventListener('install', event => {
